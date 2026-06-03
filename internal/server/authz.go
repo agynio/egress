@@ -22,6 +22,7 @@ const (
 	organizationOwnerRelation  = "owner"
 	agentCanEditConfigRelation = "can_edit_config"
 	agentCanReadConfigRelation = "can_read_config"
+	agentOrgRelation           = "org"
 )
 
 func identityFromMetadata(ctx context.Context) (uuid.UUID, error) {
@@ -54,6 +55,23 @@ func (s *Server) requireAgentConfigEdit(ctx context.Context, identityID uuid.UUI
 
 func (s *Server) requireAgentConfigRead(ctx context.Context, identityID uuid.UUID, agentID uuid.UUID) error {
 	return s.requireRelation(ctx, identityID, agentCanReadConfigRelation, agentObject(agentID))
+}
+
+func (s *Server) requireAgentInOrganization(ctx context.Context, organizationID uuid.UUID, agentID uuid.UUID) error {
+	resp, err := s.authorizationClient.Check(ctx, &authorizationv1.CheckRequest{
+		TupleKey: &authorizationv1.TupleKey{
+			User:     organizationObject(organizationID),
+			Relation: agentOrgRelation,
+			Object:   agentObject(agentID),
+		},
+	})
+	if err != nil {
+		return status.Errorf(codes.Internal, "authorization check: %v", err)
+	}
+	if !resp.GetAllowed() {
+		return status.Error(codes.PermissionDenied, "agent does not belong to rule organization")
+	}
+	return nil
 }
 
 func (s *Server) requireRelation(ctx context.Context, identityID uuid.UUID, relation string, object string) error {

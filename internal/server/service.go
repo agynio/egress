@@ -226,6 +226,9 @@ func (s *Server) CreateEgressRuleAttachment(ctx context.Context, req *egressv1.C
 	if err := s.requireAgentConfigEdit(ctx, callerID, agentID); err != nil {
 		return nil, err
 	}
+	if err := s.requireAgentInOrganization(ctx, rule.OrganizationID, agentID); err != nil {
+		return nil, err
+	}
 	policyID, err := s.provisionAttachmentPolicy(ctx, ruleID, agentID)
 	if err != nil {
 		return nil, err
