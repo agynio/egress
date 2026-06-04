@@ -1,3 +1,5 @@
 .env
 .DS_Store
 .gen/
+
+charts/*/charts/

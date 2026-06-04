@@ -32,3 +32,15 @@ go run ./cmd/egress
 | `SECRETS_SERVICE_ADDRESS` | No | `secrets:50051` | Secrets gRPC target. |
 | `NOTIFICATIONS_ADDRESS` | No | `notifications:50051` | Notifications gRPC target. |
 | `RECONCILIATION_INTERVAL` | No | `60s` | Reconciliation interval. |
+
+## Helm validation
+
+```sh
+helm dependency update charts/egress
+helm lint charts/egress
+helm template egress charts/egress
+```
+
+The chart includes Istio `AuthorizationPolicy` rules for internal-only RPCs:
+`ListEgressRulesByAgent` is limited to the Egress Gateway service account, and
+`CountRulesReferencingSecret` is limited to the Secrets service account.

@@ -22,6 +22,9 @@ type validatedRuleInput struct {
 }
 
 func validateRuleInput(organizationIDValue string, name string, description string, matcher *egressv1.EgressRuleMatcher, effect *egressv1.EgressRuleEffect) (validatedRuleInput, error) {
+	if isNoopEffect(effect) {
+		return validatedRuleInput{}, fmt.Errorf("effect must set deny, allow, or injected headers")
+	}
 	organizationID, err := uuid.Parse(strings.TrimSpace(organizationIDValue))
 	if err != nil {
 		return validatedRuleInput{}, fmt.Errorf("organization_id: invalid uuid")
@@ -207,4 +210,14 @@ func validateHeader(header *egressv1.EgressRuleHeader, index int) (*egressv1.Egr
 	default:
 		return nil, nil, fmt.Errorf("effect.inject[%d] must set value or secret_id", index)
 	}
+}
+
+func isNoopEffect(effect *egressv1.EgressRuleEffect) bool {
+	if effect == nil {
+		return true
+	}
+	if effect.GetAction() == egressv1.EgressRuleAction_EGRESS_RULE_ACTION_ALLOW || effect.GetAction() == egressv1.EgressRuleAction_EGRESS_RULE_ACTION_DENY {
+		return false
+	}
+	return len(effect.GetInject()) == 0
 }

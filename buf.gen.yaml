@@ -1,7 +1,7 @@
 version: v1
 
 plugins:
-  - plugin: buf.build/protocolbuffers/go
+  - plugin: go
     out: .gen/go
     opt:
       - paths=source_relative
@@ -11,7 +11,7 @@ plugins:
       - Magynio/api/notifications/v1/notifications.proto=github.com/agynio/egress/.gen/go/agynio/api/notifications/v1
       - Magynio/api/ziti_management/v1/ziti_management.proto=github.com/agynio/egress/.gen/go/agynio/api/ziti_management/v1
       - Magynio/api/identity/v1/identity.proto=github.com/agynio/egress/.gen/go/agynio/api/identity/v1
-  - plugin: buf.build/grpc/go
+  - plugin: go-grpc
     out: .gen/go
     opt:
       - paths=source_relative

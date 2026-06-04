@@ -1,0 +1,22 @@
+{{- if .Values.internalAuthorizationPolicy.enabled -}}
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: {{ include "service-base.fullname" . }}-internal-rpc
+  labels:
+{{ include "service-base.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+{{ include "service-base.selectorLabels" . | nindent 6 }}
+  action: ALLOW
+  rules:
+{{- range .Values.internalAuthorizationPolicy.rules }}
+    - from:
+{{ toYaml .from | nindent 8 }}
+      to:
+        - operation:
+            methods:
+{{ toYaml .methods | nindent 14 }}
+{{- end }}
+{{- end -}}

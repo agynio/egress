@@ -110,14 +110,25 @@ func (f *fakeAuthorizationClient) checked(expected string) bool {
 
 type fakeRuleStore struct {
 	rule              store.Rule
+	rules             []store.Rule
+	attachments       []store.Attachment
+	updatedServiceID  string
+	updatedPolicyID   string
 	createdAttachment *store.Attachment
 }
 
-func (f *fakeRuleStore) CreateRule(context.Context, store.Rule) error           { return nil }
-func (f *fakeRuleStore) UpdateRule(context.Context, store.Rule) error           { return nil }
+func (f *fakeRuleStore) CreateRule(context.Context, store.Rule) error { return nil }
+func (f *fakeRuleStore) UpdateRule(context.Context, store.Rule) error { return nil }
+func (f *fakeRuleStore) UpdateRuleServiceID(_ context.Context, _ uuid.UUID, serviceID string) error {
+	f.updatedServiceID = serviceID
+	return nil
+}
 func (f *fakeRuleStore) GetRule(context.Context, uuid.UUID) (store.Rule, error) { return f.rule, nil }
 func (f *fakeRuleStore) ListRules(context.Context, uuid.UUID, int32, *store.PageCursor) (store.RuleListResult, error) {
 	return store.RuleListResult{}, nil
+}
+func (f *fakeRuleStore) ListAllRules(context.Context) ([]store.Rule, error) {
+	return f.rules, nil
 }
 func (f *fakeRuleStore) ListRulesByAgent(context.Context, uuid.UUID) ([]store.Rule, error) {
 	return nil, nil
@@ -130,6 +141,10 @@ func (f *fakeRuleStore) CreateAttachment(_ context.Context, attachment store.Att
 	f.createdAttachment = &attachment
 	return nil
 }
+func (f *fakeRuleStore) UpdateAttachmentPolicyID(_ context.Context, _ uuid.UUID, policyID string) error {
+	f.updatedPolicyID = policyID
+	return nil
+}
 func (f *fakeRuleStore) GetAttachment(context.Context, uuid.UUID) (store.Attachment, error) {
 	if f.createdAttachment == nil {
 		return store.Attachment{}, store.ErrAttachmentNotFound
@@ -138,6 +153,9 @@ func (f *fakeRuleStore) GetAttachment(context.Context, uuid.UUID) (store.Attachm
 	attachment.CreatedAt = time.Now()
 	attachment.UpdatedAt = attachment.CreatedAt
 	return attachment, nil
+}
+func (f *fakeRuleStore) ListAllAttachments(context.Context) ([]store.Attachment, error) {
+	return f.attachments, nil
 }
 func (f *fakeRuleStore) ListAttachments(context.Context, uuid.UUID, *uuid.UUID, *uuid.UUID, int32, *store.PageCursor) (store.AttachmentListResult, error) {
 	return store.AttachmentListResult{}, nil
@@ -156,6 +174,15 @@ type fakeZitiManagementClient struct {
 func (f *fakeZitiManagementClient) CreateService(context.Context, *zitimanagementv1.CreateServiceRequest, ...grpc.CallOption) (*zitimanagementv1.CreateServiceResponse, error) {
 	return &zitimanagementv1.CreateServiceResponse{ZitiServiceId: "service-id"}, nil
 }
+func (f *fakeZitiManagementClient) GetService(context.Context, *zitimanagementv1.GetServiceRequest, ...grpc.CallOption) (*zitimanagementv1.GetServiceResponse, error) {
+	return &zitimanagementv1.GetServiceResponse{Service: &zitimanagementv1.Service{ZitiServiceId: "service-id"}}, nil
+}
+func (f *fakeZitiManagementClient) ListServices(context.Context, *zitimanagementv1.ListServicesRequest, ...grpc.CallOption) (*zitimanagementv1.ListServicesResponse, error) {
+	return &zitimanagementv1.ListServicesResponse{}, nil
+}
+func (f *fakeZitiManagementClient) UpdateService(context.Context, *zitimanagementv1.UpdateServiceRequest, ...grpc.CallOption) (*zitimanagementv1.UpdateServiceResponse, error) {
+	return &zitimanagementv1.UpdateServiceResponse{Service: &zitimanagementv1.Service{ZitiServiceId: "service-id"}}, nil
+}
 func (f *fakeZitiManagementClient) DeleteService(context.Context, *zitimanagementv1.DeleteServiceRequest, ...grpc.CallOption) (*zitimanagementv1.DeleteServiceResponse, error) {
 	return &zitimanagementv1.DeleteServiceResponse{}, nil
 }
@@ -163,6 +190,12 @@ func (f *fakeZitiManagementClient) CreateServicePolicy(_ context.Context, req *z
 	f.createServicePolicyCalls++
 	f.lastPolicy = req
 	return &zitimanagementv1.CreateServicePolicyResponse{ZitiServicePolicyId: f.policyID}, nil
+}
+func (f *fakeZitiManagementClient) GetServicePolicy(context.Context, *zitimanagementv1.GetServicePolicyRequest, ...grpc.CallOption) (*zitimanagementv1.GetServicePolicyResponse, error) {
+	return &zitimanagementv1.GetServicePolicyResponse{ServicePolicy: &zitimanagementv1.ServicePolicy{ZitiServicePolicyId: f.policyID}}, nil
+}
+func (f *fakeZitiManagementClient) ListServicePolicies(context.Context, *zitimanagementv1.ListServicePoliciesRequest, ...grpc.CallOption) (*zitimanagementv1.ListServicePoliciesResponse, error) {
+	return &zitimanagementv1.ListServicePoliciesResponse{}, nil
 }
 func (f *fakeZitiManagementClient) DeleteServicePolicy(context.Context, *zitimanagementv1.DeleteServicePolicyRequest, ...grpc.CallOption) (*zitimanagementv1.DeleteServicePolicyResponse, error) {
 	return &zitimanagementv1.DeleteServicePolicyResponse{}, nil

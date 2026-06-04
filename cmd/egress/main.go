@@ -44,13 +44,15 @@ func main() {
 	defer zitiConn.Close()
 
 	grpcServer := grpc.NewServer()
-	egressv1.RegisterEgressRulesServiceServer(grpcServer, server.New(server.Options{
+	egressServer := server.New(server.Options{
 		Store:               store.New(pool),
 		AuthorizationClient: authorizationv1.NewAuthorizationServiceClient(authzConn),
 		SecretsClient:       secretsv1.NewSecretsServiceClient(secretsConn),
 		NotificationsClient: notificationsv1.NewNotificationsServiceClient(notificationsConn),
 		ZitiClient:          zitimanagementv1.NewZitiManagementServiceClient(zitiConn),
-	}))
+	})
+	egressv1.RegisterEgressRulesServiceServer(grpcServer, egressServer)
+	go server.NewReconciler(egressServer, cfg.ReconciliationInterval).Run(ctx)
 
 	listener, err := net.Listen("tcp", cfg.GRPCAddress)
 	if err != nil {

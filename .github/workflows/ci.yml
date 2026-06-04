@@ -33,7 +33,18 @@ jobs:
       - name: Install native build dependencies
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gcc
 
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.4
+
       - name: Generate, lint, test, and build
         env:
           BUF_TOKEN: ${{ secrets.BUF_TOKEN }}
         run: make ci
+
+      - name: Validate Helm chart
+        run: |
+          helm dependency update charts/egress
+          helm lint charts/egress
+          helm template egress charts/egress

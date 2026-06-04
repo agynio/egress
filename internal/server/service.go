@@ -144,20 +144,13 @@ func (s *Server) UpdateEgressRule(ctx context.Context, req *egressv1.UpdateEgres
 		updated.Effect = input.Effect
 	}
 	if req.GetMatcher() != nil {
-		serviceID, err := s.provisionRuleService(ctx, ruleID, updated.Matcher)
+		serviceID, err := s.reconcileRuleService(ctx, updated)
 		if err != nil {
 			return nil, err
 		}
-		oldServiceID := updated.OpenZitiServiceID
 		updated.OpenZitiServiceID = serviceID
 		if err := s.store.UpdateRule(ctx, updated); err != nil {
-			if cleanupErr := s.deleteRuleService(ctx, serviceID); cleanupErr != nil {
-				return nil, cleanupErr
-			}
 			return nil, toStatusError(err)
-		}
-		if err := s.deleteRuleService(ctx, oldServiceID); err != nil {
-			return nil, err
 		}
 	} else if err := s.store.UpdateRule(ctx, updated); err != nil {
 		return nil, toStatusError(err)
