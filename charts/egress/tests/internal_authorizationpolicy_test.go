@@ -15,8 +15,14 @@ func TestInternalAuthorizationPolicyUsesGrpcPathsAndPreservesPublicReachability(
 		t.Fatal("runtime caller unavailable")
 	}
 	chartDir := filepath.Dir(filepath.Dir(filename))
-	cmd := exec.Command("helm", "template", "egress", chartDir)
 	var stderr bytes.Buffer
+	dependency := exec.Command("helm", "dependency", "build", chartDir)
+	dependency.Stderr = &stderr
+	if err := dependency.Run(); err != nil {
+		t.Fatalf("helm dependency build: %v: %s", err, stderr.String())
+	}
+	stderr.Reset()
+	cmd := exec.Command("helm", "template", "egress", chartDir)
 	cmd.Stderr = &stderr
 	output, err := cmd.Output()
 	if err != nil {
