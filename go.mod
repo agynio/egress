@@ -1,4 +1,4 @@
-module github.com/agynio/egress-rules
+module github.com/agynio/egress
 
 go 1.25.7
 

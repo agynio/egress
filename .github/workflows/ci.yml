@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      GO111MODULE: on
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Set up Buf
+        uses: bufbuild/buf-setup-action@v1
+        with:
+          version: '1.67.0'
+          github_token: ${{ github.token }}
+          buf_api_token: ${{ secrets.BUF_TOKEN }}
+
+      - name: Install native build dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gcc
+
+      - name: Generate, lint, test, and build
+        env:
+          BUF_TOKEN: ${{ secrets.BUF_TOKEN }}
+        run: make ci

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	egressv1 "github.com/agynio/egress-rules/.gen/go/agynio/api/egress/v1"
-	zitimanagementv1 "github.com/agynio/egress-rules/.gen/go/agynio/api/ziti_management/v1"
+	egressv1 "github.com/agynio/egress/.gen/go/agynio/api/egress/v1"
+	zitimanagementv1 "github.com/agynio/egress/.gen/go/agynio/api/ziti_management/v1"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

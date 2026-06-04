@@ -5,15 +5,15 @@ import (
 	"log"
 	"net"
 
-	authorizationv1 "github.com/agynio/egress-rules/.gen/go/agynio/api/authorization/v1"
-	egressv1 "github.com/agynio/egress-rules/.gen/go/agynio/api/egress/v1"
-	notificationsv1 "github.com/agynio/egress-rules/.gen/go/agynio/api/notifications/v1"
-	secretsv1 "github.com/agynio/egress-rules/.gen/go/agynio/api/secrets/v1"
-	zitimanagementv1 "github.com/agynio/egress-rules/.gen/go/agynio/api/ziti_management/v1"
-	"github.com/agynio/egress-rules/internal/config"
-	"github.com/agynio/egress-rules/internal/db"
-	"github.com/agynio/egress-rules/internal/server"
-	"github.com/agynio/egress-rules/internal/store"
+	authorizationv1 "github.com/agynio/egress/.gen/go/agynio/api/authorization/v1"
+	egressv1 "github.com/agynio/egress/.gen/go/agynio/api/egress/v1"
+	notificationsv1 "github.com/agynio/egress/.gen/go/agynio/api/notifications/v1"
+	secretsv1 "github.com/agynio/egress/.gen/go/agynio/api/secrets/v1"
+	zitimanagementv1 "github.com/agynio/egress/.gen/go/agynio/api/ziti_management/v1"
+	"github.com/agynio/egress/internal/config"
+	"github.com/agynio/egress/internal/db"
+	"github.com/agynio/egress/internal/server"
+	"github.com/agynio/egress/internal/store"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -56,7 +56,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("listen: %v", err)
 	}
-	log.Printf("egress-rules listening on %s", cfg.GRPCAddress)
+	log.Printf("egress listening on %s", cfg.GRPCAddress)
 	if err := grpcServer.Serve(listener); err != nil {
 		log.Fatalf("serve grpc: %v", err)
 	}
