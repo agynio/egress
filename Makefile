@@ -8,7 +8,7 @@ proto:
 	buf generate buf.build/agynio/api --path agynio/api/secrets/v1
 	buf generate buf.build/agynio/api --path agynio/api/notifications/v1
 	buf generate buf.build/agynio/api --path agynio/api/identity/v1
-	buf generate buf.build/agynio/api --path agynio/api/ziti_management/v1
+	buf generate https://github.com/agynio/api.git#branch=noa/issue-60-api --path proto/agynio/api/ziti_management/v1/ziti_management.proto
 
 build:
 	go build ./...
