@@ -167,13 +167,13 @@ metrics:
 internalAuthorizationPolicy:
   enabled: true
   rules:
-    - methods:
+    - paths:
         - /agynio.api.egress.v1.EgressRulesService/ListEgressRulesByAgent
       from:
         - source:
             principals:
               - cluster.local/ns/platform/sa/egress-gateway
-    - methods:
+    - paths:
         - /agynio.api.egress.v1.EgressRulesService/CountRulesReferencingSecret
       from:
         - source:

@@ -11,12 +11,20 @@ spec:
 {{ include "service-base.selectorLabels" . | nindent 6 }}
   action: ALLOW
   rules:
+    - to:
+        - operation:
+            notPaths:
+{{- range .Values.internalAuthorizationPolicy.rules }}
+{{- range .paths }}
+              - {{ . | quote }}
+{{- end }}
+{{- end }}
 {{- range .Values.internalAuthorizationPolicy.rules }}
     - from:
 {{ toYaml .from | nindent 8 }}
       to:
         - operation:
-            methods:
-{{ toYaml .methods | nindent 14 }}
+            paths:
+{{ toYaml .paths | nindent 14 }}
 {{- end }}
 {{- end -}}

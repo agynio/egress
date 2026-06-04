@@ -15,6 +15,9 @@ import (
 const (
 	egressServiceRoleAttribute = "egress-services"
 	tcpProtocol                = "tcp"
+	allIPv4Addresses           = "0.0.0.0/0"
+	minimumTCPPort             = 1
+	maximumTCPPort             = 65535
 )
 
 func egressServiceName(ruleID uuid.UUID) string {
@@ -169,8 +172,8 @@ func hostV1Config(matcher *egressv1.EgressRuleMatcher) *zitimanagementv1.HostV1C
 		ForwardAddress:    true,
 		ForwardPort:       true,
 		AllowedProtocols:  []string{tcpProtocol},
-		AllowedAddresses:  []string{matcher.GetDomainPattern()},
-		AllowedPortRanges: portRangesFromPorts(matcher.GetPorts()),
+		AllowedAddresses:  []string{allIPv4Addresses},
+		AllowedPortRanges: []*zitimanagementv1.PortRange{{Low: minimumTCPPort, High: maximumTCPPort}},
 	}
 }
 

@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -79,12 +80,140 @@ func TestCreateEgressRuleAttachmentProvisionsAfterAgentOrgAllowed(t *testing.T) 
 	}
 }
 
+func TestUpdateEgressRuleDoesNotMutateZitiWhenStoreUpdateFails(t *testing.T) {
+	callerID := uuid.New()
+	ruleID := uuid.New()
+	organizationID := uuid.New()
+	existingMatcher := &egressv1.EgressRuleMatcher{DomainPattern: "api.example.com", Ports: []int32{443}}
+
+	storeFake := &fakeRuleStore{
+		rule: store.Rule{
+			ID:                ruleID,
+			OrganizationID:    organizationID,
+			Name:              "api",
+			Matcher:           existingMatcher,
+			Effect:            allowEffect(),
+			OpenZitiServiceID: "service-id",
+		},
+		updateRuleErr: errors.New("database unavailable"),
+	}
+	authzFake := &fakeAuthorizationClient{allowed: map[string]bool{
+		tupleKey(identityObject(callerID), organizationOwnerRelation, organizationObject(organizationID)): true,
+	}}
+	zitiFake := &fakeZitiManagementClient{}
+
+	srv := New(Options{Store: storeFake, AuthorizationClient: authzFake, SecretsClient: fakeSecretsClient{}, NotificationsClient: fakeNotificationsClient{}, ZitiClient: zitiFake})
+	_, err := srv.UpdateEgressRule(incomingIdentityContext(callerID), &egressv1.UpdateEgressRuleRequest{
+		Id:      ruleID.String(),
+		Matcher: &egressv1.EgressRuleMatcher{DomainPattern: "api2.example.com", Ports: []int32{443}},
+	})
+	if status.Code(err) != codes.Internal {
+		t.Fatalf("status = %v, err = %v", status.Code(err), err)
+	}
+	if zitiFake.getServiceCalls != 0 || zitiFake.updateServiceCalls != 0 || zitiFake.createServiceCalls != 0 {
+		t.Fatalf("expected no Ziti mutation on failed store update, got get=%d update=%d create=%d", zitiFake.getServiceCalls, zitiFake.updateServiceCalls, zitiFake.createServiceCalls)
+	}
+}
+
+func TestDuplicateAttachmentReturnsExistingWithoutPolicyCleanup(t *testing.T) {
+	callerID := uuid.New()
+	ruleID := uuid.New()
+	agentID := uuid.New()
+	attachmentID := uuid.New()
+	organizationID := uuid.New()
+	existing := store.Attachment{ID: attachmentID, RuleID: ruleID, AgentID: agentID, OpenZitiDialPolicyID: "existing-policy", CreatedAt: time.Now(), UpdatedAt: time.Now()}
+
+	storeFake := &fakeRuleStore{
+		rule:           store.Rule{ID: ruleID, OrganizationID: organizationID, Matcher: &egressv1.EgressRuleMatcher{DomainPattern: "api.example.com"}, Effect: allowEffect()},
+		existingByPair: &existing,
+	}
+	authzFake := &fakeAuthorizationClient{allowed: map[string]bool{
+		tupleKey(identityObject(callerID), organizationMemberRelation, organizationObject(organizationID)): true,
+		tupleKey(identityObject(callerID), agentCanEditConfigRelation, agentObject(agentID)):               true,
+		tupleKey(organizationObject(organizationID), agentOrgRelation, agentObject(agentID)):               true,
+	}}
+	zitiFake := &fakeZitiManagementClient{policyID: "existing-policy"}
+
+	srv := New(Options{Store: storeFake, AuthorizationClient: authzFake, NotificationsClient: fakeNotificationsClient{}, ZitiClient: zitiFake})
+	resp, err := srv.CreateEgressRuleAttachment(incomingIdentityContext(callerID), &egressv1.CreateEgressRuleAttachmentRequest{RuleId: ruleID.String(), AgentId: agentID.String()})
+	if err != nil {
+		t.Fatalf("CreateEgressRuleAttachment: %v", err)
+	}
+	if resp.GetEgressRuleAttachment().GetMeta().GetId() != attachmentID.String() {
+		t.Fatalf("attachment id = %q", resp.GetEgressRuleAttachment().GetMeta().GetId())
+	}
+	if zitiFake.createServicePolicyCalls != 0 || zitiFake.deleteServicePolicyCalls != 0 {
+		t.Fatalf("expected no Ziti create/delete for duplicate, got create=%d delete=%d", zitiFake.createServicePolicyCalls, zitiFake.deleteServicePolicyCalls)
+	}
+	if storeFake.createdAttachment != nil {
+		t.Fatal("expected no attachment insert for duplicate")
+	}
+}
+
+func TestListEgressRuleAttachmentsByAgentRequiresAgentRead(t *testing.T) {
+	callerID := uuid.New()
+	agentID := uuid.New()
+	organizationID := uuid.New()
+
+	storeFake := &fakeRuleStore{}
+	authzFake := &fakeAuthorizationClient{allowed: map[string]bool{
+		tupleKey(identityObject(callerID), organizationMemberRelation, organizationObject(organizationID)): true,
+	}}
+	srv := New(Options{Store: storeFake, AuthorizationClient: authzFake, NotificationsClient: fakeNotificationsClient{}, ZitiClient: &fakeZitiManagementClient{}})
+
+	_, err := srv.ListEgressRuleAttachments(incomingIdentityContext(callerID), &egressv1.ListEgressRuleAttachmentsRequest{OrganizationId: organizationID.String(), AgentId: stringPtr(agentID.String())})
+	if status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("status = %v, err = %v", status.Code(err), err)
+	}
+	if !authzFake.checked(tupleKey(identityObject(callerID), agentCanReadConfigRelation, agentObject(agentID))) {
+		t.Fatal("expected can_read_config check on agent")
+	}
+	if authzFake.checked(tupleKey(identityObject(callerID), organizationMemberRelation, organizationObject(organizationID))) {
+		t.Fatal("expected agent-scoped listing not to use org membership only")
+	}
+	if storeFake.listAttachmentsCalls != 0 {
+		t.Fatalf("list attachments calls = %d", storeFake.listAttachmentsCalls)
+	}
+}
+
+func TestListEgressRuleAttachmentsByRuleVerifiesRuleOrganization(t *testing.T) {
+	callerID := uuid.New()
+	ruleID := uuid.New()
+	requestedOrganizationID := uuid.New()
+	ruleOrganizationID := uuid.New()
+
+	storeFake := &fakeRuleStore{rule: store.Rule{ID: ruleID, OrganizationID: ruleOrganizationID, Matcher: &egressv1.EgressRuleMatcher{DomainPattern: "api.example.com"}, Effect: allowEffect()}}
+	authzFake := &fakeAuthorizationClient{allowed: map[string]bool{
+		tupleKey(identityObject(callerID), organizationMemberRelation, organizationObject(ruleOrganizationID)): true,
+	}}
+	srv := New(Options{Store: storeFake, AuthorizationClient: authzFake, NotificationsClient: fakeNotificationsClient{}, ZitiClient: &fakeZitiManagementClient{}})
+
+	_, err := srv.ListEgressRuleAttachments(incomingIdentityContext(callerID), &egressv1.ListEgressRuleAttachmentsRequest{OrganizationId: requestedOrganizationID.String(), RuleId: stringPtr(ruleID.String())})
+	if status.Code(err) != codes.NotFound {
+		t.Fatalf("status = %v, err = %v", status.Code(err), err)
+	}
+	if authzFake.checked(tupleKey(identityObject(callerID), organizationMemberRelation, organizationObject(ruleOrganizationID))) {
+		t.Fatal("expected no membership check when rule is outside requested org")
+	}
+	if storeFake.listAttachmentsCalls != 0 {
+		t.Fatalf("list attachments calls = %d", storeFake.listAttachmentsCalls)
+	}
+}
+
 func incomingIdentityContext(identityID uuid.UUID) context.Context {
 	return metadata.NewIncomingContext(context.Background(), metadata.Pairs(identityMetadata, identityID.String()))
 }
 
 func tupleKey(user string, relation string, object string) string {
 	return fmt.Sprintf("%s|%s|%s", user, relation, object)
+}
+
+func stringPtr(value string) *string {
+	return &value
+}
+
+func allowEffect() *egressv1.EgressRuleEffect {
+	return &egressv1.EgressRuleEffect{Action: egressv1.EgressRuleAction_EGRESS_RULE_ACTION_ALLOW.Enum()}
 }
 
 type fakeAuthorizationClient struct {
@@ -109,16 +238,25 @@ func (f *fakeAuthorizationClient) checked(expected string) bool {
 }
 
 type fakeRuleStore struct {
-	rule              store.Rule
-	rules             []store.Rule
-	attachments       []store.Attachment
-	updatedServiceID  string
-	updatedPolicyID   string
-	createdAttachment *store.Attachment
+	rule                 store.Rule
+	rules                []store.Rule
+	attachments          []store.Attachment
+	existingByPair       *store.Attachment
+	updateRuleErr        error
+	updatedServiceID     string
+	updatedPolicyID      string
+	createdAttachment    *store.Attachment
+	listAttachmentsCalls int
 }
 
 func (f *fakeRuleStore) CreateRule(context.Context, store.Rule) error { return nil }
-func (f *fakeRuleStore) UpdateRule(context.Context, store.Rule) error { return nil }
+func (f *fakeRuleStore) UpdateRule(_ context.Context, rule store.Rule) error {
+	if f.updateRuleErr != nil {
+		return f.updateRuleErr
+	}
+	f.rule = rule
+	return nil
+}
 func (f *fakeRuleStore) UpdateRuleServiceID(_ context.Context, _ uuid.UUID, serviceID string) error {
 	f.updatedServiceID = serviceID
 	return nil
@@ -154,10 +292,17 @@ func (f *fakeRuleStore) GetAttachment(context.Context, uuid.UUID) (store.Attachm
 	attachment.UpdatedAt = attachment.CreatedAt
 	return attachment, nil
 }
+func (f *fakeRuleStore) GetAttachmentByRuleAndAgent(context.Context, uuid.UUID, uuid.UUID) (store.Attachment, error) {
+	if f.existingByPair == nil {
+		return store.Attachment{}, store.ErrAttachmentNotFound
+	}
+	return *f.existingByPair, nil
+}
 func (f *fakeRuleStore) ListAllAttachments(context.Context) ([]store.Attachment, error) {
 	return f.attachments, nil
 }
 func (f *fakeRuleStore) ListAttachments(context.Context, uuid.UUID, *uuid.UUID, *uuid.UUID, int32, *store.PageCursor) (store.AttachmentListResult, error) {
+	f.listAttachmentsCalls++
 	return store.AttachmentListResult{}, nil
 }
 func (f *fakeRuleStore) DeleteAttachment(context.Context, uuid.UUID) error { return nil }
@@ -167,20 +312,27 @@ func (f *fakeRuleStore) CountRulesReferencingSecret(context.Context, uuid.UUID) 
 
 type fakeZitiManagementClient struct {
 	policyID                 string
+	createServiceCalls       int
+	getServiceCalls          int
+	updateServiceCalls       int
 	createServicePolicyCalls int
+	deleteServicePolicyCalls int
 	lastPolicy               *zitimanagementv1.CreateServicePolicyRequest
 }
 
 func (f *fakeZitiManagementClient) CreateService(context.Context, *zitimanagementv1.CreateServiceRequest, ...grpc.CallOption) (*zitimanagementv1.CreateServiceResponse, error) {
+	f.createServiceCalls++
 	return &zitimanagementv1.CreateServiceResponse{ZitiServiceId: "service-id"}, nil
 }
 func (f *fakeZitiManagementClient) GetService(context.Context, *zitimanagementv1.GetServiceRequest, ...grpc.CallOption) (*zitimanagementv1.GetServiceResponse, error) {
+	f.getServiceCalls++
 	return &zitimanagementv1.GetServiceResponse{Service: &zitimanagementv1.Service{ZitiServiceId: "service-id"}}, nil
 }
 func (f *fakeZitiManagementClient) ListServices(context.Context, *zitimanagementv1.ListServicesRequest, ...grpc.CallOption) (*zitimanagementv1.ListServicesResponse, error) {
 	return &zitimanagementv1.ListServicesResponse{}, nil
 }
 func (f *fakeZitiManagementClient) UpdateService(context.Context, *zitimanagementv1.UpdateServiceRequest, ...grpc.CallOption) (*zitimanagementv1.UpdateServiceResponse, error) {
+	f.updateServiceCalls++
 	return &zitimanagementv1.UpdateServiceResponse{Service: &zitimanagementv1.Service{ZitiServiceId: "service-id"}}, nil
 }
 func (f *fakeZitiManagementClient) DeleteService(context.Context, *zitimanagementv1.DeleteServiceRequest, ...grpc.CallOption) (*zitimanagementv1.DeleteServiceResponse, error) {
@@ -198,6 +350,7 @@ func (f *fakeZitiManagementClient) ListServicePolicies(context.Context, *zitiman
 	return &zitimanagementv1.ListServicePoliciesResponse{}, nil
 }
 func (f *fakeZitiManagementClient) DeleteServicePolicy(context.Context, *zitimanagementv1.DeleteServicePolicyRequest, ...grpc.CallOption) (*zitimanagementv1.DeleteServicePolicyResponse, error) {
+	f.deleteServicePolicyCalls++
 	return &zitimanagementv1.DeleteServicePolicyResponse{}, nil
 }
 

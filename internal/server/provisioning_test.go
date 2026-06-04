@@ -25,10 +25,10 @@ func TestCreateServiceRequestUsesForwardingHostConfig(t *testing.T) {
 	if !host.GetForwardAddress() || !host.GetForwardPort() || !host.GetForwardProtocol() {
 		t.Fatalf("forwarding flags not all enabled: %+v", host)
 	}
-	if got := host.GetAllowedAddresses(); len(got) != 1 || got[0] != "api.example.com" {
+	if got := host.GetAllowedAddresses(); len(got) != 1 || got[0] != allIPv4Addresses {
 		t.Fatalf("allowed addresses = %v", got)
 	}
-	if got := host.GetAllowedPortRanges(); len(got) != 1 || got[0].GetLow() != 443 || got[0].GetHigh() != 443 {
+	if got := host.GetAllowedPortRanges(); len(got) != 1 || got[0].GetLow() != minimumTCPPort || got[0].GetHigh() != maximumTCPPort {
 		t.Fatalf("allowed port ranges = %v", got)
 	}
 	intercept := req.GetInterceptV1Config()
@@ -50,7 +50,7 @@ func TestServiceMatchesRuleDetectsDrift(t *testing.T) {
 	if !serviceMatchesRule(service, rule) {
 		t.Fatal("expected service to match rule")
 	}
-	service.HostV1Config.AllowedAddresses = []string{"drift.example.com"}
+	service.HostV1Config.AllowedAddresses = []string{"10.0.0.0/8"}
 	if serviceMatchesRule(service, rule) {
 		t.Fatal("expected host config drift to be detected")
 	}

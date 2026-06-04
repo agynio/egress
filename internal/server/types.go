@@ -26,6 +26,7 @@ type ruleStore interface {
 	CreateAttachment(context.Context, store.Attachment) error
 	UpdateAttachmentPolicyID(context.Context, uuid.UUID, string) error
 	GetAttachment(context.Context, uuid.UUID) (store.Attachment, error)
+	GetAttachmentByRuleAndAgent(context.Context, uuid.UUID, uuid.UUID) (store.Attachment, error)
 	ListAllAttachments(context.Context) ([]store.Attachment, error)
 	ListAttachments(context.Context, uuid.UUID, *uuid.UUID, *uuid.UUID, int32, *store.PageCursor) (store.AttachmentListResult, error)
 	DeleteAttachment(context.Context, uuid.UUID) error

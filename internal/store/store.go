@@ -235,6 +235,11 @@ func (s *Store) GetAttachment(ctx context.Context, id uuid.UUID) (Attachment, er
 	return scanAttachment(row)
 }
 
+func (s *Store) GetAttachmentByRuleAndAgent(ctx context.Context, ruleID uuid.UUID, agentID uuid.UUID) (Attachment, error) {
+	row := s.pool.QueryRow(ctx, fmt.Sprintf(`SELECT %s FROM egress_rule_attachments WHERE rule_id = $1 AND agent_id = $2`, attachmentColumns), ruleID, agentID)
+	return scanAttachment(row)
+}
+
 func (s *Store) ListAttachments(ctx context.Context, organizationID uuid.UUID, ruleID *uuid.UUID, agentID *uuid.UUID, pageSize int32, cursor *PageCursor) (AttachmentListResult, error) {
 	limit := NormalizePageSize(pageSize)
 	args := []any{organizationID}
