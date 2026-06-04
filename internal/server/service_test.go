@@ -115,7 +115,7 @@ func TestUpdateEgressRuleDoesNotMutateZitiWhenStoreUpdateFails(t *testing.T) {
 	}
 }
 
-func TestDuplicateAttachmentReturnsExistingWithoutPolicyCleanup(t *testing.T) {
+func TestDuplicateAttachmentReturnsAlreadyExistsWithoutPolicyCleanup(t *testing.T) {
 	callerID := uuid.New()
 	ruleID := uuid.New()
 	agentID := uuid.New()
@@ -135,12 +135,9 @@ func TestDuplicateAttachmentReturnsExistingWithoutPolicyCleanup(t *testing.T) {
 	zitiFake := &fakeZitiManagementClient{policyID: "existing-policy"}
 
 	srv := New(Options{Store: storeFake, AuthorizationClient: authzFake, NotificationsClient: fakeNotificationsClient{}, ZitiClient: zitiFake})
-	resp, err := srv.CreateEgressRuleAttachment(incomingIdentityContext(callerID), &egressv1.CreateEgressRuleAttachmentRequest{RuleId: ruleID.String(), AgentId: agentID.String()})
-	if err != nil {
-		t.Fatalf("CreateEgressRuleAttachment: %v", err)
-	}
-	if resp.GetEgressRuleAttachment().GetMeta().GetId() != attachmentID.String() {
-		t.Fatalf("attachment id = %q", resp.GetEgressRuleAttachment().GetMeta().GetId())
+	_, err := srv.CreateEgressRuleAttachment(incomingIdentityContext(callerID), &egressv1.CreateEgressRuleAttachmentRequest{RuleId: ruleID.String(), AgentId: agentID.String()})
+	if status.Code(err) != codes.AlreadyExists {
+		t.Fatalf("status = %v, err = %v", status.Code(err), err)
 	}
 	if zitiFake.createServicePolicyCalls != 0 || zitiFake.deleteServicePolicyCalls != 0 {
 		t.Fatalf("expected no Ziti create/delete for duplicate, got create=%d delete=%d", zitiFake.createServicePolicyCalls, zitiFake.deleteServicePolicyCalls)

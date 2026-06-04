@@ -213,8 +213,8 @@ func (s *Server) CreateEgressRuleAttachment(ctx context.Context, req *egressv1.C
 	if err := s.requireAgentInOrganization(ctx, rule.OrganizationID, agentID); err != nil {
 		return nil, err
 	}
-	if existing, err := s.store.GetAttachmentByRuleAndAgent(ctx, ruleID, agentID); err == nil {
-		return &egressv1.CreateEgressRuleAttachmentResponse{EgressRuleAttachment: store.AttachmentToProto(existing)}, nil
+	if _, err := s.store.GetAttachmentByRuleAndAgent(ctx, ruleID, agentID); err == nil {
+		return nil, toStatusError(store.ErrAttachmentExists)
 	} else if !errors.Is(err, store.ErrAttachmentNotFound) {
 		return nil, toStatusError(err)
 	}
