@@ -16,13 +16,17 @@ import (
 type ruleStore interface {
 	CreateRule(context.Context, store.Rule) error
 	UpdateRule(context.Context, store.Rule) error
+	UpdateRuleServiceID(context.Context, uuid.UUID, string) error
 	GetRule(context.Context, uuid.UUID) (store.Rule, error)
 	ListRules(context.Context, uuid.UUID, int32, *store.PageCursor) (store.RuleListResult, error)
+	ListAllRules(context.Context) ([]store.Rule, error)
 	ListRulesByAgent(context.Context, uuid.UUID) ([]store.Rule, error)
 	DeleteRule(context.Context, uuid.UUID) error
 	CountAttachmentsByRule(context.Context, uuid.UUID) (int32, error)
 	CreateAttachment(context.Context, store.Attachment) error
+	UpdateAttachmentPolicyID(context.Context, uuid.UUID, string) error
 	GetAttachment(context.Context, uuid.UUID) (store.Attachment, error)
+	ListAllAttachments(context.Context) ([]store.Attachment, error)
 	ListAttachments(context.Context, uuid.UUID, *uuid.UUID, *uuid.UUID, int32, *store.PageCursor) (store.AttachmentListResult, error)
 	DeleteAttachment(context.Context, uuid.UUID) error
 	CountRulesReferencingSecret(context.Context, uuid.UUID) (int32, []uuid.UUID, error)
@@ -42,8 +46,13 @@ type notificationsClient interface {
 
 type zitiManagementClient interface {
 	CreateService(context.Context, *zitimanagementv1.CreateServiceRequest, ...grpc.CallOption) (*zitimanagementv1.CreateServiceResponse, error)
+	GetService(context.Context, *zitimanagementv1.GetServiceRequest, ...grpc.CallOption) (*zitimanagementv1.GetServiceResponse, error)
+	ListServices(context.Context, *zitimanagementv1.ListServicesRequest, ...grpc.CallOption) (*zitimanagementv1.ListServicesResponse, error)
+	UpdateService(context.Context, *zitimanagementv1.UpdateServiceRequest, ...grpc.CallOption) (*zitimanagementv1.UpdateServiceResponse, error)
 	DeleteService(context.Context, *zitimanagementv1.DeleteServiceRequest, ...grpc.CallOption) (*zitimanagementv1.DeleteServiceResponse, error)
 	CreateServicePolicy(context.Context, *zitimanagementv1.CreateServicePolicyRequest, ...grpc.CallOption) (*zitimanagementv1.CreateServicePolicyResponse, error)
+	GetServicePolicy(context.Context, *zitimanagementv1.GetServicePolicyRequest, ...grpc.CallOption) (*zitimanagementv1.GetServicePolicyResponse, error)
+	ListServicePolicies(context.Context, *zitimanagementv1.ListServicePoliciesRequest, ...grpc.CallOption) (*zitimanagementv1.ListServicePoliciesResponse, error)
 	DeleteServicePolicy(context.Context, *zitimanagementv1.DeleteServicePolicyRequest, ...grpc.CallOption) (*zitimanagementv1.DeleteServicePolicyResponse, error)
 }
 
