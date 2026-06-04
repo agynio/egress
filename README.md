@@ -8,6 +8,16 @@ events through Notifications.
 
 ## Build
 
+`make proto` uses the local Buf plugins configured in `buf.gen.yaml`.
+Install the protobuf generators before running `make ci` on a clean machine:
+
+```sh
+go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.0
+```
+
+Ensure `$(go env GOPATH)/bin` is on `PATH`.
+
 ```sh
 make proto
 go build ./...
