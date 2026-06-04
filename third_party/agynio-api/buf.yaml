@@ -1,0 +1,15 @@
+version: v2
+
+modules:
+  - path: proto
+    name: buf.build/agynio/api
+
+lint:
+  use:
+    - STANDARD
+  except:
+    - RPC_REQUEST_RESPONSE_UNIQUE
+    - SERVICE_SUFFIX
+breaking:
+  use:
+    - FILE

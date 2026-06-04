@@ -143,23 +143,7 @@ func (s *Server) UpdateEgressRule(ctx context.Context, req *egressv1.UpdateEgres
 		updated.Matcher = input.Matcher
 		updated.Effect = input.Effect
 	}
-	if req.GetMatcher() != nil {
-		serviceID, err := s.provisionRuleService(ctx, ruleID, updated.Matcher)
-		if err != nil {
-			return nil, err
-		}
-		oldServiceID := updated.OpenZitiServiceID
-		updated.OpenZitiServiceID = serviceID
-		if err := s.store.UpdateRule(ctx, updated); err != nil {
-			if cleanupErr := s.deleteRuleService(ctx, serviceID); cleanupErr != nil {
-				return nil, cleanupErr
-			}
-			return nil, toStatusError(err)
-		}
-		if err := s.deleteRuleService(ctx, oldServiceID); err != nil {
-			return nil, err
-		}
-	} else if err := s.store.UpdateRule(ctx, updated); err != nil {
+	if err := s.store.UpdateRule(ctx, updated); err != nil {
 		return nil, toStatusError(err)
 	}
 	stored, err := s.store.GetRule(ctx, ruleID)
@@ -229,6 +213,11 @@ func (s *Server) CreateEgressRuleAttachment(ctx context.Context, req *egressv1.C
 	if err := s.requireAgentInOrganization(ctx, rule.OrganizationID, agentID); err != nil {
 		return nil, err
 	}
+	if _, err := s.store.GetAttachmentByRuleAndAgent(ctx, ruleID, agentID); err == nil {
+		return nil, toStatusError(store.ErrAttachmentExists)
+	} else if !errors.Is(err, store.ErrAttachmentNotFound) {
+		return nil, toStatusError(err)
+	}
 	policyID, err := s.provisionAttachmentPolicy(ctx, ruleID, agentID)
 	if err != nil {
 		return nil, err
@@ -291,13 +280,20 @@ func (s *Server) ListEgressRuleAttachments(ctx context.Context, req *egressv1.Li
 	if err != nil {
 		return nil, err
 	}
-	if err := s.requireOrgMember(ctx, callerID, organizationID); err != nil {
-		return nil, err
-	}
 	var ruleID *uuid.UUID
 	if req.RuleId != nil {
 		id, err := parseUUID(req.GetRuleId(), "rule_id")
 		if err != nil {
+			return nil, err
+		}
+		rule, err := s.store.GetRule(ctx, id)
+		if err != nil {
+			return nil, toStatusError(err)
+		}
+		if rule.OrganizationID != organizationID {
+			return nil, status.Error(codes.NotFound, store.ErrRuleNotFound.Error())
+		}
+		if err := s.requireOrgMember(ctx, callerID, rule.OrganizationID); err != nil {
 			return nil, err
 		}
 		ruleID = &id
@@ -308,7 +304,15 @@ func (s *Server) ListEgressRuleAttachments(ctx context.Context, req *egressv1.Li
 		if err != nil {
 			return nil, err
 		}
+		if err := s.requireAgentConfigRead(ctx, callerID, id); err != nil {
+			return nil, err
+		}
 		agentID = &id
+	}
+	if ruleID == nil && agentID == nil {
+		if err := s.requireOrgMember(ctx, callerID, organizationID); err != nil {
+			return nil, err
+		}
 	}
 	cursor, err := store.DecodePageCursor(req.GetPageToken())
 	if err != nil {

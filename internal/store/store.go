@@ -134,6 +134,19 @@ func (s *Store) ListRules(ctx context.Context, organizationID uuid.UUID, pageSiz
 	return result, nil
 }
 
+func (s *Store) ListAllRules(ctx context.Context) ([]Rule, error) {
+	rows, err := s.pool.Query(ctx, fmt.Sprintf(`SELECT %s FROM egress_rules ORDER BY id ASC`, ruleColumns))
+	if err != nil {
+		return nil, fmt.Errorf("list all egress rules: %w", err)
+	}
+	defer rows.Close()
+	rules, err := collectRules(rows)
+	if err != nil {
+		return nil, fmt.Errorf("list all egress rules: %w", err)
+	}
+	return rules, nil
+}
+
 func (s *Store) ListRulesByAgent(ctx context.Context, agentID uuid.UUID) ([]Rule, error) {
 	rows, err := s.pool.Query(ctx, fmt.Sprintf(`
 		SELECT %s
@@ -193,8 +206,37 @@ func (s *Store) CreateAttachment(ctx context.Context, attachment Attachment) err
 	return nil
 }
 
+func (s *Store) UpdateAttachmentPolicyID(ctx context.Context, id uuid.UUID, policyID string) error {
+	tag, err := s.pool.Exec(ctx, `UPDATE egress_rule_attachments SET openziti_dial_policy_id = $2, updated_at = NOW() WHERE id = $1`, id, policyID)
+	if err != nil {
+		return fmt.Errorf("update egress rule attachment policy id: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrAttachmentNotFound
+	}
+	return nil
+}
+
+func (s *Store) ListAllAttachments(ctx context.Context) ([]Attachment, error) {
+	rows, err := s.pool.Query(ctx, fmt.Sprintf(`SELECT %s FROM egress_rule_attachments ORDER BY id ASC`, attachmentColumns))
+	if err != nil {
+		return nil, fmt.Errorf("list all egress rule attachments: %w", err)
+	}
+	defer rows.Close()
+	attachments, err := collectAttachments(rows)
+	if err != nil {
+		return nil, fmt.Errorf("list all egress rule attachments: %w", err)
+	}
+	return attachments, nil
+}
+
 func (s *Store) GetAttachment(ctx context.Context, id uuid.UUID) (Attachment, error) {
 	row := s.pool.QueryRow(ctx, fmt.Sprintf(`SELECT %s FROM egress_rule_attachments WHERE id = $1`, attachmentColumns), id)
+	return scanAttachment(row)
+}
+
+func (s *Store) GetAttachmentByRuleAndAgent(ctx context.Context, ruleID uuid.UUID, agentID uuid.UUID) (Attachment, error) {
+	row := s.pool.QueryRow(ctx, fmt.Sprintf(`SELECT %s FROM egress_rule_attachments WHERE rule_id = $1 AND agent_id = $2`, attachmentColumns), ruleID, agentID)
 	return scanAttachment(row)
 }
 

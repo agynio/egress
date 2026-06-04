@@ -1,14 +1,13 @@
 SHELL := /bin/bash
 
-BUF_INPUT := buf.build/agynio/api
+BUF_INPUT := third_party/agynio-api
 BUF_PATHS := \
-	--path agynio/api/egress/v1 \
-	--path agynio/api/authorization/v1 \
-	--path agynio/api/secrets/v1 \
-	--path agynio/api/notifications/v1 \
-	--path agynio/api/identity/v1 \
-	--path agynio/api/ziti_management/v1
-
+	--path third_party/agynio-api/proto/agynio/api/egress/v1 \
+	--path third_party/agynio-api/proto/agynio/api/authorization/v1 \
+	--path third_party/agynio-api/proto/agynio/api/secrets/v1 \
+	--path third_party/agynio-api/proto/agynio/api/notifications/v1 \
+	--path third_party/agynio-api/proto/agynio/api/identity/v1 \
+	--path third_party/agynio-api/proto/agynio/api/ziti_management/v1
 .PHONY: proto build build-go test test-go lint vet fmt ci clean
 
 proto:
