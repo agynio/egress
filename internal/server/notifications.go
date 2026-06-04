@@ -4,13 +4,13 @@ import (
 	"context"
 	"log"
 
-	notificationsv1 "github.com/agynio/egress-rules/.gen/go/agynio/api/notifications/v1"
+	notificationsv1 "github.com/agynio/egress/.gen/go/agynio/api/notifications/v1"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
 const (
-	notificationSource               = "egress-rules"
+	notificationSource               = "egress"
 	egressRuleUpdatedEvent           = "egress_rule.updated"
 	egressRuleAttachmentUpdatedEvent = "egress_rule_attachment.updated"
 )

@@ -1,6 +1,6 @@
-# Egress Rules Service
+# Egress Service
 
-Egress Rules is a gRPC service that owns EgressRule and EgressRuleAttachment
+Egress is a gRPC service that owns EgressRule and EgressRuleAttachment
 resources for the egress gateway v1 program. It stores rule configuration in
 PostgreSQL, provisions OpenZiti services and dial policies via Ziti Management,
 validates secret references through Secrets, and publishes cache-invalidation
@@ -16,9 +16,9 @@ go build ./...
 ## Run
 
 ```sh
-export DATABASE_URL='postgres://user:pass@localhost:5432/egress_rules?sslmode=disable'
+export DATABASE_URL='postgres://user:pass@localhost:5432/egress?sslmode=disable'
 export GRPC_ADDRESS=':50051'
-go run ./cmd/egress-rules
+go run ./cmd/egress
 ```
 
 ## Configuration

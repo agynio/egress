@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	egressv1 "github.com/agynio/egress-rules/.gen/go/agynio/api/egress/v1"
+	egressv1 "github.com/agynio/egress/.gen/go/agynio/api/egress/v1"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	authorizationv1 "github.com/agynio/egress-rules/.gen/go/agynio/api/authorization/v1"
+	authorizationv1 "github.com/agynio/egress/.gen/go/agynio/api/authorization/v1"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"

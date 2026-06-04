@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	egressv1 "github.com/agynio/egress-rules/.gen/go/agynio/api/egress/v1"
-	secretsv1 "github.com/agynio/egress-rules/.gen/go/agynio/api/secrets/v1"
-	"github.com/agynio/egress-rules/internal/store"
+	egressv1 "github.com/agynio/egress/.gen/go/agynio/api/egress/v1"
+	secretsv1 "github.com/agynio/egress/.gen/go/agynio/api/secrets/v1"
+	"github.com/agynio/egress/internal/store"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

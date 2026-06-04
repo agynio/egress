@@ -3,12 +3,12 @@ package server
 import (
 	"context"
 
-	authorizationv1 "github.com/agynio/egress-rules/.gen/go/agynio/api/authorization/v1"
-	egressv1 "github.com/agynio/egress-rules/.gen/go/agynio/api/egress/v1"
-	notificationsv1 "github.com/agynio/egress-rules/.gen/go/agynio/api/notifications/v1"
-	secretsv1 "github.com/agynio/egress-rules/.gen/go/agynio/api/secrets/v1"
-	zitimanagementv1 "github.com/agynio/egress-rules/.gen/go/agynio/api/ziti_management/v1"
-	"github.com/agynio/egress-rules/internal/store"
+	authorizationv1 "github.com/agynio/egress/.gen/go/agynio/api/authorization/v1"
+	egressv1 "github.com/agynio/egress/.gen/go/agynio/api/egress/v1"
+	notificationsv1 "github.com/agynio/egress/.gen/go/agynio/api/notifications/v1"
+	secretsv1 "github.com/agynio/egress/.gen/go/agynio/api/secrets/v1"
+	zitimanagementv1 "github.com/agynio/egress/.gen/go/agynio/api/ziti_management/v1"
+	"github.com/agynio/egress/internal/store"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 )

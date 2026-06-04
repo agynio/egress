@@ -1,23 +1,35 @@
 SHELL := /bin/bash
 
-.PHONY: proto build test lint fmt clean
+BUF_INPUT := buf.build/agynio/api
+BUF_PATHS := \
+	--path agynio/api/egress/v1 \
+	--path agynio/api/authorization/v1 \
+	--path agynio/api/secrets/v1 \
+	--path agynio/api/notifications/v1 \
+	--path agynio/api/identity/v1 \
+	--path agynio/api/ziti_management/v1
+
+.PHONY: proto build build-go test test-go lint vet fmt ci clean
 
 proto:
-	buf generate buf.build/agynio/api --path agynio/api/egress/v1
-	buf generate buf.build/agynio/api --path agynio/api/authorization/v1
-	buf generate buf.build/agynio/api --path agynio/api/secrets/v1
-	buf generate buf.build/agynio/api --path agynio/api/notifications/v1
-	buf generate buf.build/agynio/api --path agynio/api/identity/v1
-	buf generate buf.build/agynio/api --path agynio/api/ziti_management/v1
+	buf generate $(BUF_INPUT) $(BUF_PATHS)
 
-build:
+build: proto build-go
+
+build-go:
 	go build ./...
 
-test:
+test: proto test-go
+
+test-go:
 	go test ./...
 
-lint:
+lint: proto vet
+
+vet:
 	go vet ./...
+
+ci: proto vet test-go build-go
 
 fmt:
 	gofmt -w $$(find . -type f -name '*.go')

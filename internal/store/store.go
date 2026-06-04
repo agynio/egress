@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	egressv1 "github.com/agynio/egress-rules/.gen/go/agynio/api/egress/v1"
+	egressv1 "github.com/agynio/egress/.gen/go/agynio/api/egress/v1"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
