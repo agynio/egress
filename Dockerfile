@@ -20,9 +20,8 @@ COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     go mod download
-COPY buf.gen.yaml buf.yaml Makefile ./
-RUN make proto
 COPY . .
+RUN make proto
 ARG TARGETOS TARGETARCH
 ENV CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH
 RUN --mount=type=cache,target=/go/pkg/mod \
