@@ -115,6 +115,78 @@ func TestUpdateEgressRuleDoesNotMutateZitiWhenStoreUpdateFails(t *testing.T) {
 	}
 }
 
+func TestUpdateEgressRuleUpdatesZitiWhenMatcherInterceptChanges(t *testing.T) {
+	callerID := uuid.New()
+	ruleID := uuid.New()
+	organizationID := uuid.New()
+
+	storeFake := &fakeRuleStore{rule: store.Rule{
+		ID:                ruleID,
+		OrganizationID:    organizationID,
+		Name:              "api rule",
+		Matcher:           &egressv1.EgressRuleMatcher{DomainPattern: "api.example.com", Ports: []int32{443}},
+		Effect:            allowEffect(),
+		OpenZitiServiceID: "service-id",
+	}}
+	authzFake := &fakeAuthorizationClient{allowed: map[string]bool{
+		tupleKey(identityObject(callerID), organizationOwnerRelation, organizationObject(organizationID)): true,
+	}}
+	zitiFake := &fakeZitiManagementClient{serviceID: "updated-service-id"}
+
+	srv := New(Options{Store: storeFake, AuthorizationClient: authzFake, SecretsClient: fakeSecretsClient{}, NotificationsClient: fakeNotificationsClient{}, ZitiClient: zitiFake})
+	_, err := srv.UpdateEgressRule(incomingIdentityContext(callerID), &egressv1.UpdateEgressRuleRequest{
+		Id:      ruleID.String(),
+		Matcher: &egressv1.EgressRuleMatcher{DomainPattern: "api2.example.com", Ports: []int32{80}},
+	})
+	if err != nil {
+		t.Fatalf("UpdateEgressRule: %v", err)
+	}
+	if zitiFake.updateServiceCalls != 1 {
+		t.Fatalf("update service calls = %d", zitiFake.updateServiceCalls)
+	}
+	if storeFake.updatedServiceID != "updated-service-id" {
+		t.Fatalf("updated service id = %q", storeFake.updatedServiceID)
+	}
+	intercept := zitiFake.lastUpdate.GetInterceptV1Config()
+	if got := intercept.GetAddresses(); len(got) != 1 || got[0] != "api2.example.com" {
+		t.Fatalf("intercept addresses = %v", got)
+	}
+	if got := intercept.GetPortRanges(); len(got) != 1 || got[0].GetLow() != 80 || got[0].GetHigh() != 80 {
+		t.Fatalf("intercept ports = %v", got)
+	}
+}
+
+func TestUpdateEgressRuleSkipsZitiWhenMatcherInterceptUnchanged(t *testing.T) {
+	callerID := uuid.New()
+	ruleID := uuid.New()
+	organizationID := uuid.New()
+
+	storeFake := &fakeRuleStore{rule: store.Rule{
+		ID:                ruleID,
+		OrganizationID:    organizationID,
+		Name:              "api rule",
+		Matcher:           &egressv1.EgressRuleMatcher{DomainPattern: "api.example.com", Ports: []int32{443}, Methods: []string{"GET"}},
+		Effect:            allowEffect(),
+		OpenZitiServiceID: "service-id",
+	}}
+	authzFake := &fakeAuthorizationClient{allowed: map[string]bool{
+		tupleKey(identityObject(callerID), organizationOwnerRelation, organizationObject(organizationID)): true,
+	}}
+	zitiFake := &fakeZitiManagementClient{}
+
+	srv := New(Options{Store: storeFake, AuthorizationClient: authzFake, SecretsClient: fakeSecretsClient{}, NotificationsClient: fakeNotificationsClient{}, ZitiClient: zitiFake})
+	_, err := srv.UpdateEgressRule(incomingIdentityContext(callerID), &egressv1.UpdateEgressRuleRequest{
+		Id:      ruleID.String(),
+		Matcher: &egressv1.EgressRuleMatcher{DomainPattern: "api.example.com", Ports: []int32{443}, Methods: []string{"POST"}},
+	})
+	if err != nil {
+		t.Fatalf("UpdateEgressRule: %v", err)
+	}
+	if zitiFake.updateServiceCalls != 0 {
+		t.Fatalf("update service calls = %d", zitiFake.updateServiceCalls)
+	}
+}
+
 func TestDuplicateAttachmentReturnsAlreadyExistsWithoutPolicyCleanup(t *testing.T) {
 	callerID := uuid.New()
 	ruleID := uuid.New()
@@ -308,29 +380,44 @@ func (f *fakeRuleStore) CountRulesReferencingSecret(context.Context, uuid.UUID) 
 }
 
 type fakeZitiManagementClient struct {
+	serviceID                string
 	policyID                 string
 	createServiceCalls       int
 	getServiceCalls          int
 	updateServiceCalls       int
 	createServicePolicyCalls int
 	deleteServicePolicyCalls int
+	lastUpdate               *zitimanagementv1.UpdateServiceRequest
 	lastPolicy               *zitimanagementv1.CreateServicePolicyRequest
 }
 
 func (f *fakeZitiManagementClient) CreateService(context.Context, *zitimanagementv1.CreateServiceRequest, ...grpc.CallOption) (*zitimanagementv1.CreateServiceResponse, error) {
 	f.createServiceCalls++
-	return &zitimanagementv1.CreateServiceResponse{ZitiServiceId: "service-id"}, nil
+	serviceID := f.serviceID
+	if serviceID == "" {
+		serviceID = "service-id"
+	}
+	return &zitimanagementv1.CreateServiceResponse{ZitiServiceId: serviceID}, nil
 }
 func (f *fakeZitiManagementClient) GetService(context.Context, *zitimanagementv1.GetServiceRequest, ...grpc.CallOption) (*zitimanagementv1.GetServiceResponse, error) {
 	f.getServiceCalls++
-	return &zitimanagementv1.GetServiceResponse{Service: &zitimanagementv1.Service{ZitiServiceId: "service-id"}}, nil
+	serviceID := f.serviceID
+	if serviceID == "" {
+		serviceID = "service-id"
+	}
+	return &zitimanagementv1.GetServiceResponse{Service: &zitimanagementv1.Service{ZitiServiceId: serviceID}}, nil
 }
 func (f *fakeZitiManagementClient) ListServices(context.Context, *zitimanagementv1.ListServicesRequest, ...grpc.CallOption) (*zitimanagementv1.ListServicesResponse, error) {
 	return &zitimanagementv1.ListServicesResponse{}, nil
 }
-func (f *fakeZitiManagementClient) UpdateService(context.Context, *zitimanagementv1.UpdateServiceRequest, ...grpc.CallOption) (*zitimanagementv1.UpdateServiceResponse, error) {
+func (f *fakeZitiManagementClient) UpdateService(_ context.Context, req *zitimanagementv1.UpdateServiceRequest, _ ...grpc.CallOption) (*zitimanagementv1.UpdateServiceResponse, error) {
 	f.updateServiceCalls++
-	return &zitimanagementv1.UpdateServiceResponse{Service: &zitimanagementv1.Service{ZitiServiceId: "service-id"}}, nil
+	f.lastUpdate = req
+	serviceID := f.serviceID
+	if serviceID == "" {
+		serviceID = "service-id"
+	}
+	return &zitimanagementv1.UpdateServiceResponse{Service: &zitimanagementv1.Service{ZitiServiceId: serviceID}}, nil
 }
 func (f *fakeZitiManagementClient) DeleteService(context.Context, *zitimanagementv1.DeleteServiceRequest, ...grpc.CallOption) (*zitimanagementv1.DeleteServiceResponse, error) {
 	return &zitimanagementv1.DeleteServiceResponse{}, nil
