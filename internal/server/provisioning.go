@@ -67,6 +67,14 @@ func (s *Server) reconcileRuleService(ctx context.Context, rule store.Rule) (str
 	if serviceMatchesRule(resp.GetService(), rule) {
 		return serviceID, nil
 	}
+	return s.updateRuleService(ctx, rule)
+}
+
+func (s *Server) updateRuleService(ctx context.Context, rule store.Rule) (string, error) {
+	serviceID := rule.OpenZitiServiceID
+	if serviceID == "" {
+		return s.provisionRuleService(ctx, rule.ID, rule.Matcher)
+	}
 	name := egressServiceName(rule.ID)
 	update, err := s.zitiClient.UpdateService(ctx, &zitimanagementv1.UpdateServiceRequest{
 		ZitiServiceId:     serviceID,

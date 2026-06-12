@@ -143,6 +143,13 @@ func (s *Server) UpdateEgressRule(ctx context.Context, req *egressv1.UpdateEgres
 		updated.Matcher = input.Matcher
 		updated.Effect = input.Effect
 	}
+	if req.GetMatcher() != nil && !interceptV1ConfigsEqual(interceptV1Config(existing.Matcher), interceptV1Config(updated.Matcher)) {
+		serviceID, err := s.updateRuleService(ctx, updated)
+		if err != nil {
+			return nil, err
+		}
+		updated.OpenZitiServiceID = serviceID
+	}
 	if err := s.store.UpdateRule(ctx, updated); err != nil {
 		return nil, toStatusError(err)
 	}

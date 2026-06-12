@@ -26,7 +26,7 @@ func (s *Server) publishRuleUpdated(ctx context.Context, organizationID uuid.UUI
 	}
 	if _, err := s.notificationsClient.Publish(ctx, &notificationsv1.PublishRequest{
 		Event:   egressRuleUpdatedEvent,
-		Rooms:   []string{organizationRoom(organizationID)},
+		Rooms:   []string{organizationRoom(organizationID), egressRulesRoom},
 		Payload: payload,
 		Source:  notificationSource,
 	}); err != nil {
@@ -47,13 +47,15 @@ func (s *Server) publishAttachmentUpdated(ctx context.Context, organizationID uu
 	}
 	if _, err := s.notificationsClient.Publish(ctx, &notificationsv1.PublishRequest{
 		Event:   egressRuleAttachmentUpdatedEvent,
-		Rooms:   []string{organizationRoom(organizationID)},
+		Rooms:   []string{organizationRoom(organizationID), egressRulesRoom},
 		Payload: payload,
 		Source:  notificationSource,
 	}); err != nil {
 		log.Printf("publish %s: %v", egressRuleAttachmentUpdatedEvent, err)
 	}
 }
+
+const egressRulesRoom = "egress_rules"
 
 func organizationRoom(organizationID uuid.UUID) string {
 	return "organization:" + organizationID.String()
