@@ -216,14 +216,29 @@ message ListServicesResponse {
 
 message UpdateServiceRequest {
   string ziti_service_id = 1;
-  optional string name = 2;
+  optional HostV1Config host_v1_config = 2;
+  optional InterceptV1Config intercept_v1_config = 3;
+  // Deprecated: use tags_update to distinguish omitted from empty.
+  map<string, string> tags = 4 [deprecated = true];
+  optional TagsUpdate tags_update = 5;
+  optional string name = 6;
+  repeated string role_attributes = 7;
+}
+
+message TagsUpdate {
+  map<string, string> tags = 1;
+}
+
+message OpenZitiService {
+  string ziti_service_id = 1;
+  string name = 2;
   repeated string role_attributes = 3;
-  optional HostV1Config host_v1_config = 4;
-  optional InterceptV1Config intercept_v1_config = 5;
+  map<string, string> tags = 4;
 }
 
 message UpdateServiceResponse {
-  Service service = 1;
+  OpenZitiService service = 1;
+  Service reconciled_service = 2;
 }
 
 // Request to delete an app's OpenZiti identity and service by platform identity_id.

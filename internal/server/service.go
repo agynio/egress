@@ -225,7 +225,11 @@ func (s *Server) CreateEgressRuleAttachment(ctx context.Context, req *egressv1.C
 	} else if !errors.Is(err, store.ErrAttachmentNotFound) {
 		return nil, toStatusError(err)
 	}
-	policyID, err := s.provisionAttachmentPolicy(ctx, ruleID, agentID)
+	rule, err = s.ensureRuleService(ctx, rule)
+	if err != nil {
+		return nil, err
+	}
+	policyID, err := s.provisionAttachmentPolicy(ctx, rule, agentID)
 	if err != nil {
 		return nil, err
 	}

@@ -16,6 +16,7 @@ const (
 	egressServiceRoleAttribute = "egress-services"
 	tcpProtocol                = "tcp"
 	allIPv4Addresses           = "0.0.0.0/0"
+	defaultHostPort            = 443
 	minimumTCPPort             = 1
 	maximumTCPPort             = 65535
 )
@@ -32,8 +33,8 @@ func agentRole(agentID uuid.UUID) string {
 	return fmt.Sprintf("#agent-%s", agentID)
 }
 
-func serviceNameRole(ruleID uuid.UUID) string {
-	return fmt.Sprintf("@%s", egressServiceName(ruleID))
+func serviceIDRole(serviceID string) string {
+	return fmt.Sprintf("@%s", serviceID)
 }
 
 func (s *Server) provisionRuleService(ctx context.Context, ruleID uuid.UUID, matcher *egressv1.EgressRuleMatcher) (string, error) {
@@ -70,6 +71,20 @@ func (s *Server) reconcileRuleService(ctx context.Context, rule store.Rule) (str
 	return s.updateRuleService(ctx, rule)
 }
 
+func (s *Server) ensureRuleService(ctx context.Context, rule store.Rule) (store.Rule, error) {
+	serviceID, err := s.reconcileRuleService(ctx, rule)
+	if err != nil {
+		return store.Rule{}, err
+	}
+	if serviceID != rule.OpenZitiServiceID {
+		if err := s.store.UpdateRuleServiceID(ctx, rule.ID, serviceID); err != nil {
+			return store.Rule{}, toStatusError(err)
+		}
+		rule.OpenZitiServiceID = serviceID
+	}
+	return rule, nil
+}
+
 func (s *Server) updateRuleService(ctx context.Context, rule store.Rule) (string, error) {
 	serviceID := rule.OpenZitiServiceID
 	if serviceID == "" {
@@ -104,16 +119,16 @@ func (s *Server) deleteRuleService(ctx context.Context, serviceID string) error 
 	return nil
 }
 
-func (s *Server) provisionAttachmentPolicy(ctx context.Context, ruleID uuid.UUID, agentID uuid.UUID) (string, error) {
-	return s.createAttachmentPolicy(ctx, ruleID, agentID, true)
+func (s *Server) provisionAttachmentPolicy(ctx context.Context, rule store.Rule, agentID uuid.UUID) (string, error) {
+	return s.createAttachmentPolicy(ctx, rule.ID, rule.OpenZitiServiceID, agentID, true)
 }
 
-func (s *Server) createAttachmentPolicy(ctx context.Context, ruleID uuid.UUID, agentID uuid.UUID, returnExisting bool) (string, error) {
+func (s *Server) createAttachmentPolicy(ctx context.Context, ruleID uuid.UUID, serviceID string, agentID uuid.UUID, returnExisting bool) (string, error) {
 	resp, err := s.zitiClient.CreateServicePolicy(ctx, &zitimanagementv1.CreateServicePolicyRequest{
 		Type:           zitimanagementv1.ServicePolicyType_SERVICE_POLICY_TYPE_DIAL,
 		Name:           egressDialPolicyName(ruleID, agentID),
 		IdentityRoles:  []string{agentRole(agentID)},
-		ServiceRoles:   []string{serviceNameRole(ruleID)},
+		ServiceRoles:   []string{serviceIDRole(serviceID)},
 		ReturnExisting: returnExisting,
 	})
 	if err != nil {
@@ -127,30 +142,38 @@ func (s *Server) createAttachmentPolicy(ctx context.Context, ruleID uuid.UUID, a
 }
 
 func (s *Server) reconcileAttachmentPolicy(ctx context.Context, attachment store.Attachment) (string, error) {
+	rule, err := s.store.GetRule(ctx, attachment.RuleID)
+	if err != nil {
+		return "", toStatusError(err)
+	}
+	rule, err = s.ensureRuleService(ctx, rule)
+	if err != nil {
+		return "", err
+	}
 	policyID := attachment.OpenZitiDialPolicyID
 	if policyID == "" {
-		return s.provisionAttachmentPolicy(ctx, attachment.RuleID, attachment.AgentID)
+		return s.provisionAttachmentPolicy(ctx, rule, attachment.AgentID)
 	}
 	resp, err := s.zitiClient.GetServicePolicy(ctx, &zitimanagementv1.GetServicePolicyRequest{
 		Lookup: &zitimanagementv1.GetServicePolicyRequest_ZitiServicePolicyId{ZitiServicePolicyId: policyID},
 	})
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
-			return s.provisionAttachmentPolicy(ctx, attachment.RuleID, attachment.AgentID)
+			return s.provisionAttachmentPolicy(ctx, rule, attachment.AgentID)
 		}
 		return "", status.Errorf(codes.Internal, "get egress rule dial policy: %v", err)
 	}
-	if servicePolicyMatchesAttachment(resp.GetServicePolicy(), attachment) {
+	if servicePolicyMatchesAttachment(resp.GetServicePolicy(), attachment, rule.OpenZitiServiceID) {
 		return policyID, nil
 	}
-	return s.replaceAttachmentPolicy(ctx, attachment)
+	return s.replaceAttachmentPolicy(ctx, attachment, rule.OpenZitiServiceID)
 }
 
-func (s *Server) replaceAttachmentPolicy(ctx context.Context, attachment store.Attachment) (string, error) {
+func (s *Server) replaceAttachmentPolicy(ctx context.Context, attachment store.Attachment, serviceID string) (string, error) {
 	if err := s.deleteAttachmentPolicy(ctx, attachment.OpenZitiDialPolicyID); err != nil {
 		return "", err
 	}
-	return s.createAttachmentPolicy(ctx, attachment.RuleID, attachment.AgentID, false)
+	return s.createAttachmentPolicy(ctx, attachment.RuleID, serviceID, attachment.AgentID, false)
 }
 
 func (s *Server) deleteAttachmentPolicy(ctx context.Context, policyID string) error {
@@ -176,6 +199,8 @@ func createServiceRequest(ruleID uuid.UUID, matcher *egressv1.EgressRuleMatcher)
 func hostV1Config(matcher *egressv1.EgressRuleMatcher) *zitimanagementv1.HostV1Config {
 	return &zitimanagementv1.HostV1Config{
 		Protocol:          tcpProtocol,
+		Address:           matcher.GetDomainPattern(),
+		Port:              defaultHostPort,
 		ForwardProtocol:   true,
 		ForwardAddress:    true,
 		ForwardPort:       true,
@@ -203,14 +228,14 @@ func serviceMatchesRule(service *zitimanagementv1.Service, rule store.Rule) bool
 		interceptV1ConfigsEqual(service.GetInterceptV1Config(), interceptV1Config(rule.Matcher))
 }
 
-func servicePolicyMatchesAttachment(policy *zitimanagementv1.ServicePolicy, attachment store.Attachment) bool {
+func servicePolicyMatchesAttachment(policy *zitimanagementv1.ServicePolicy, attachment store.Attachment, serviceID string) bool {
 	if policy == nil {
 		return false
 	}
 	return policy.GetName() == egressDialPolicyName(attachment.RuleID, attachment.AgentID) &&
 		policy.GetType() == zitimanagementv1.ServicePolicyType_SERVICE_POLICY_TYPE_DIAL &&
 		stringSlicesEqual(policy.GetIdentityRoles(), []string{agentRole(attachment.AgentID)}) &&
-		stringSlicesEqual(policy.GetServiceRoles(), []string{serviceNameRole(attachment.RuleID)})
+		stringSlicesEqual(policy.GetServiceRoles(), []string{serviceIDRole(serviceID)})
 }
 
 func hostV1ConfigsEqual(left *zitimanagementv1.HostV1Config, right *zitimanagementv1.HostV1Config) bool {
@@ -218,6 +243,7 @@ func hostV1ConfigsEqual(left *zitimanagementv1.HostV1Config, right *zitimanageme
 		return left == right
 	}
 	return left.GetProtocol() == right.GetProtocol() &&
+		left.GetAddress() == right.GetAddress() &&
 		left.GetPort() == right.GetPort() &&
 		left.GetForwardProtocol() == right.GetForwardProtocol() &&
 		left.GetForwardAddress() == right.GetForwardAddress() &&
@@ -261,8 +287,12 @@ func portRangesEqual(left []*zitimanagementv1.PortRange, right []*zitimanagement
 }
 
 func portRangesFromPorts(ports []int32) []*zitimanagementv1.PortRange {
-	ranges := make([]*zitimanagementv1.PortRange, 0, len(ports))
-	for _, port := range ports {
+	resolvedPorts := ports
+	if len(resolvedPorts) == 0 {
+		resolvedPorts = serviceDefaultPorts
+	}
+	ranges := make([]*zitimanagementv1.PortRange, 0, len(resolvedPorts))
+	for _, port := range resolvedPorts {
 		ranges = append(ranges, &zitimanagementv1.PortRange{Low: port, High: port})
 	}
 	return ranges

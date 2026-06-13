@@ -56,14 +56,9 @@ func (s *Server) Reconcile(ctx context.Context) error {
 		return toStatusError(err)
 	}
 	for _, rule := range rules {
-		serviceID, err := s.reconcileRuleService(ctx, rule)
+		_, err := s.ensureRuleService(ctx, rule)
 		if err != nil {
 			return err
-		}
-		if serviceID != rule.OpenZitiServiceID {
-			if err := s.store.UpdateRuleServiceID(ctx, rule.ID, serviceID); err != nil {
-				return toStatusError(err)
-			}
 		}
 	}
 	for _, attachment := range attachments {
