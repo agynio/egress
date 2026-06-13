@@ -16,6 +16,7 @@ const (
 	egressServiceRoleAttribute = "egress-services"
 	tcpProtocol                = "tcp"
 	allIPv4Addresses           = "0.0.0.0/0"
+	defaultHostPort            = 443
 	minimumTCPPort             = 1
 	maximumTCPPort             = 65535
 )
@@ -176,6 +177,7 @@ func createServiceRequest(ruleID uuid.UUID, matcher *egressv1.EgressRuleMatcher)
 func hostV1Config(matcher *egressv1.EgressRuleMatcher) *zitimanagementv1.HostV1Config {
 	return &zitimanagementv1.HostV1Config{
 		Protocol:          tcpProtocol,
+		Port:              defaultHostPort,
 		ForwardProtocol:   true,
 		ForwardAddress:    true,
 		ForwardPort:       true,
@@ -261,8 +263,12 @@ func portRangesEqual(left []*zitimanagementv1.PortRange, right []*zitimanagement
 }
 
 func portRangesFromPorts(ports []int32) []*zitimanagementv1.PortRange {
-	ranges := make([]*zitimanagementv1.PortRange, 0, len(ports))
-	for _, port := range ports {
+	resolvedPorts := ports
+	if len(resolvedPorts) == 0 {
+		resolvedPorts = serviceDefaultPorts
+	}
+	ranges := make([]*zitimanagementv1.PortRange, 0, len(resolvedPorts))
+	for _, port := range resolvedPorts {
 		ranges = append(ranges, &zitimanagementv1.PortRange{Low: port, High: port})
 	}
 	return ranges

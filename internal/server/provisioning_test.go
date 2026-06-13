@@ -28,12 +28,18 @@ func TestCreateServiceRequestUsesForwardingHostConfig(t *testing.T) {
 	if got := host.GetAllowedAddresses(); len(got) != 1 || got[0] != allIPv4Addresses {
 		t.Fatalf("allowed addresses = %v", got)
 	}
+	if host.GetPort() != defaultHostPort {
+		t.Fatalf("host port = %d", host.GetPort())
+	}
 	if got := host.GetAllowedPortRanges(); len(got) != 1 || got[0].GetLow() != minimumTCPPort || got[0].GetHigh() != maximumTCPPort {
 		t.Fatalf("allowed port ranges = %v", got)
 	}
 	intercept := req.GetInterceptV1Config()
 	if got := intercept.GetAddresses(); len(got) != 1 || got[0] != "api.example.com" {
 		t.Fatalf("intercept addresses = %v", got)
+	}
+	if got := intercept.GetPortRanges(); len(got) != 1 || got[0].GetLow() != 443 || got[0].GetHigh() != 443 {
+		t.Fatalf("intercept ports = %v", got)
 	}
 }
 
@@ -73,5 +79,12 @@ func TestServicePolicyMatchesAttachmentDetectsDrift(t *testing.T) {
 	policy.IdentityRoles = []string{"#agent-drift"}
 	if servicePolicyMatchesAttachment(policy, attachment) {
 		t.Fatal("expected identity role drift to be detected")
+	}
+}
+
+func TestPortRangesFromPortsUsesServiceDefaults(t *testing.T) {
+	ranges := portRangesFromPorts(nil)
+	if len(ranges) != 2 || ranges[0].GetLow() != 80 || ranges[0].GetHigh() != 80 || ranges[1].GetLow() != 443 || ranges[1].GetHigh() != 443 {
+		t.Fatalf("default port ranges = %v", ranges)
 	}
 }
