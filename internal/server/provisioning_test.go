@@ -25,6 +25,9 @@ func TestCreateServiceRequestUsesForwardingHostConfig(t *testing.T) {
 	if !host.GetForwardAddress() || !host.GetForwardPort() || !host.GetForwardProtocol() {
 		t.Fatalf("forwarding flags not all enabled: %+v", host)
 	}
+	if host.GetAddress() != "api.example.com" {
+		t.Fatalf("host address = %q", host.GetAddress())
+	}
 	if got := host.GetAllowedAddresses(); len(got) != 1 || got[0] != allIPv4Addresses {
 		t.Fatalf("allowed addresses = %v", got)
 	}

@@ -177,6 +177,7 @@ func createServiceRequest(ruleID uuid.UUID, matcher *egressv1.EgressRuleMatcher)
 func hostV1Config(matcher *egressv1.EgressRuleMatcher) *zitimanagementv1.HostV1Config {
 	return &zitimanagementv1.HostV1Config{
 		Protocol:          tcpProtocol,
+		Address:           matcher.GetDomainPattern(),
 		Port:              defaultHostPort,
 		ForwardProtocol:   true,
 		ForwardAddress:    true,
