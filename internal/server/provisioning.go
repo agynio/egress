@@ -221,6 +221,7 @@ func hostV1ConfigsEqual(left *zitimanagementv1.HostV1Config, right *zitimanageme
 		return left == right
 	}
 	return left.GetProtocol() == right.GetProtocol() &&
+		left.GetAddress() == right.GetAddress() &&
 		left.GetPort() == right.GetPort() &&
 		left.GetForwardProtocol() == right.GetForwardProtocol() &&
 		left.GetForwardAddress() == right.GetForwardAddress() &&

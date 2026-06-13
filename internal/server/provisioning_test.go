@@ -65,6 +65,22 @@ func TestServiceMatchesRuleDetectsDrift(t *testing.T) {
 	}
 }
 
+func TestServiceMatchesRuleDetectsHostAddressDrift(t *testing.T) {
+	ruleID := uuid.New()
+	rule := store.Rule{ID: ruleID, Matcher: &egressv1.EgressRuleMatcher{DomainPattern: "api.example.com", Ports: []int32{443}}}
+	service := &zitimanagementv1.Service{
+		ZitiServiceId:     "service-id",
+		Name:              egressServiceName(ruleID),
+		RoleAttributes:    []string{egressServiceRoleAttribute},
+		HostV1Config:      hostV1Config(rule.Matcher),
+		InterceptV1Config: interceptV1Config(rule.Matcher),
+	}
+	service.HostV1Config.Address = "stale.example.com"
+	if serviceMatchesRule(service, rule) {
+		t.Fatal("expected host address drift to be detected")
+	}
+}
+
 func TestServicePolicyMatchesAttachmentDetectsDrift(t *testing.T) {
 	ruleID := uuid.New()
 	agentID := uuid.New()
