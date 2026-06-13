@@ -56,6 +56,10 @@ func (s *Server) reconcileRuleService(ctx context.Context, rule store.Rule) (str
 	if serviceID == "" {
 		return s.provisionRuleService(ctx, rule.ID, rule.Matcher)
 	}
+	return s.reconcileReadableRuleService(ctx, rule, serviceID)
+}
+
+func (s *Server) reconcileReadableRuleService(ctx context.Context, rule store.Rule, serviceID string) (string, error) {
 	resp, err := s.zitiClient.GetService(ctx, &zitimanagementv1.GetServiceRequest{
 		Lookup: &zitimanagementv1.GetServiceRequest_ZitiServiceId{ZitiServiceId: serviceID},
 	})
@@ -63,7 +67,7 @@ func (s *Server) reconcileRuleService(ctx context.Context, rule store.Rule) (str
 		if status.Code(err) == codes.NotFound {
 			return s.provisionRuleService(ctx, rule.ID, rule.Matcher)
 		}
-		return "", status.Errorf(codes.Internal, "get egress rule service: %v", err)
+		return "", err
 	}
 	if serviceMatchesRule(resp.GetService(), rule) {
 		return serviceID, nil
@@ -74,7 +78,27 @@ func (s *Server) reconcileRuleService(ctx context.Context, rule store.Rule) (str
 func (s *Server) ensureRuleService(ctx context.Context, rule store.Rule) (store.Rule, error) {
 	serviceID, err := s.reconcileRuleService(ctx, rule)
 	if err != nil {
-		return store.Rule{}, err
+		return store.Rule{}, status.Errorf(codes.Internal, "reconcile egress rule service: %v", err)
+	}
+	if serviceID != rule.OpenZitiServiceID {
+		if err := s.store.UpdateRuleServiceID(ctx, rule.ID, serviceID); err != nil {
+			return store.Rule{}, toStatusError(err)
+		}
+		rule.OpenZitiServiceID = serviceID
+	}
+	return rule, nil
+}
+
+func (s *Server) ensureRuleServiceForAttachment(ctx context.Context, rule store.Rule) (store.Rule, error) {
+	if rule.OpenZitiServiceID == "" {
+		return s.ensureRuleService(ctx, rule)
+	}
+	serviceID, err := s.reconcileReadableRuleService(ctx, rule, rule.OpenZitiServiceID)
+	if err != nil {
+		if status.Code(err) == codes.Unimplemented {
+			return rule, nil
+		}
+		return store.Rule{}, status.Errorf(codes.Internal, "reconcile egress rule service: %v", err)
 	}
 	if serviceID != rule.OpenZitiServiceID {
 		if err := s.store.UpdateRuleServiceID(ctx, rule.ID, serviceID); err != nil {
