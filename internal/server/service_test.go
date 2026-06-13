@@ -453,7 +453,7 @@ func (f *fakeZitiManagementClient) UpdateService(_ context.Context, req *zitiman
 	if serviceID == "" {
 		serviceID = "service-id"
 	}
-	return &zitimanagementv1.UpdateServiceResponse{Service: &zitimanagementv1.Service{ZitiServiceId: serviceID}}, nil
+	return &zitimanagementv1.UpdateServiceResponse{Service: &zitimanagementv1.OpenZitiService{ZitiServiceId: serviceID}}, nil
 }
 func (f *fakeZitiManagementClient) DeleteService(context.Context, *zitimanagementv1.DeleteServiceRequest, ...grpc.CallOption) (*zitimanagementv1.DeleteServiceResponse, error) {
 	return &zitimanagementv1.DeleteServiceResponse{}, nil
