@@ -55,6 +55,7 @@ func (s *Server) Reconcile(ctx context.Context) error {
 	if err != nil {
 		return toStatusError(err)
 	}
+	ruleServiceIDs := make(map[string]string, len(rules))
 	for _, rule := range rules {
 		serviceID, err := s.reconcileRuleService(ctx, rule)
 		if err != nil {
@@ -65,9 +66,14 @@ func (s *Server) Reconcile(ctx context.Context) error {
 				return toStatusError(err)
 			}
 		}
+		ruleServiceIDs[rule.ID.String()] = serviceID
 	}
 	for _, attachment := range attachments {
-		policyID, err := s.reconcileAttachmentPolicy(ctx, attachment)
+		serviceID, ok := ruleServiceIDs[attachment.RuleID.String()]
+		if !ok {
+			return status.Errorf(codes.Internal, "egress rule attachment %s references unknown rule %s", attachment.ID, attachment.RuleID)
+		}
+		policyID, err := s.reconcileAttachmentPolicy(ctx, attachment, serviceID)
 		if err != nil {
 			return err
 		}

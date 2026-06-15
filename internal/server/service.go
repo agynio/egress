@@ -225,7 +225,16 @@ func (s *Server) CreateEgressRuleAttachment(ctx context.Context, req *egressv1.C
 	} else if !errors.Is(err, store.ErrAttachmentNotFound) {
 		return nil, toStatusError(err)
 	}
-	policyID, err := s.provisionAttachmentPolicy(ctx, ruleID, agentID)
+	serviceID, err := s.reconcileRuleService(ctx, rule)
+	if err != nil {
+		return nil, err
+	}
+	if serviceID != rule.OpenZitiServiceID {
+		if err := s.store.UpdateRuleServiceID(ctx, rule.ID, serviceID); err != nil {
+			return nil, toStatusError(err)
+		}
+	}
+	policyID, err := s.provisionAttachmentPolicy(ctx, ruleID, agentID, serviceID)
 	if err != nil {
 		return nil, err
 	}
