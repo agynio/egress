@@ -59,19 +59,20 @@ func TestServiceMatchesRuleDetectsDrift(t *testing.T) {
 func TestServicePolicyMatchesAttachmentDetectsDrift(t *testing.T) {
 	ruleID := uuid.New()
 	agentID := uuid.New()
+	serviceID := "ziti-service-id"
 	attachment := store.Attachment{RuleID: ruleID, AgentID: agentID}
 	policy := &zitimanagementv1.ServicePolicy{
 		ZitiServicePolicyId: "policy-id",
 		Name:                egressDialPolicyName(ruleID, agentID),
 		Type:                zitimanagementv1.ServicePolicyType_SERVICE_POLICY_TYPE_DIAL,
 		IdentityRoles:       []string{agentRole(agentID)},
-		ServiceRoles:        []string{serviceNameRole(ruleID)},
+		ServiceRoles:        []string{zitiServiceIDRole(serviceID)},
 	}
-	if !servicePolicyMatchesAttachment(policy, attachment) {
+	if !servicePolicyMatchesAttachment(policy, attachment, serviceID) {
 		t.Fatal("expected policy to match attachment")
 	}
 	policy.IdentityRoles = []string{"#agent-drift"}
-	if servicePolicyMatchesAttachment(policy, attachment) {
+	if servicePolicyMatchesAttachment(policy, attachment, serviceID) {
 		t.Fatal("expected identity role drift to be detected")
 	}
 }
