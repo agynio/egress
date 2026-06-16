@@ -62,7 +62,7 @@ func TestCreateEgressRuleAttachmentProvisionsAfterAgentOrgAllowed(t *testing.T) 
 		tupleKey(identityObject(callerID), agentCanEditConfigRelation, agentObject(agentID)):               true,
 		tupleKey(organizationObject(organizationID), agentOrgRelation, agentObject(agentID)):               true,
 	}}
-	zitiFake := &fakeZitiManagementClient{serviceID: "ziti-service-id", policyID: "policy-id"}
+	zitiFake := &fakeZitiManagementClient{ruleID: ruleID, serviceID: "ziti-service-id", policyID: "policy-id"}
 
 	srv := New(Options{Store: storeFake, AuthorizationClient: authzFake, NotificationsClient: fakeNotificationsClient{}, ZitiClient: zitiFake})
 	resp, err := srv.CreateEgressRuleAttachment(incomingIdentityContext(callerID), &egressv1.CreateEgressRuleAttachmentRequest{RuleId: ruleID.String(), AgentId: agentID.String()})
@@ -74,6 +74,9 @@ func TestCreateEgressRuleAttachmentProvisionsAfterAgentOrgAllowed(t *testing.T) 
 	}
 	if zitiFake.createServicePolicyCalls != 1 {
 		t.Fatalf("ziti policy calls = %d", zitiFake.createServicePolicyCalls)
+	}
+	if zitiFake.updateServiceCalls != 0 {
+		t.Fatalf("update service calls = %d", zitiFake.updateServiceCalls)
 	}
 	if got := zitiFake.lastPolicy.GetServiceRoles(); len(got) != 1 || got[0] != zitiServiceIDRole("ziti-service-id") {
 		t.Fatalf("service roles = %v", got)
@@ -211,6 +214,13 @@ func TestUpdateEgressRuleUpdatesZitiWhenMatcherInterceptChanges(t *testing.T) {
 	}
 	if storeFake.rule.OpenZitiServiceID != "updated-service-id" {
 		t.Fatalf("rule service id = %q", storeFake.rule.OpenZitiServiceID)
+	}
+	if zitiFake.lastUpdate.GetZitiServiceId() != "service-id" {
+		t.Fatalf("update ziti service id = %q", zitiFake.lastUpdate.GetZitiServiceId())
+	}
+	host := zitiFake.lastUpdate.GetHostV1Config()
+	if host == nil || !host.GetForwardAddress() || !host.GetForwardPort() || !host.GetForwardProtocol() {
+		t.Fatalf("host config = %+v", host)
 	}
 	intercept := zitiFake.lastUpdate.GetInterceptV1Config()
 	if got := intercept.GetAddresses(); len(got) != 1 || got[0] != "api2.example.com" {
@@ -445,6 +455,7 @@ func (f *fakeRuleStore) CountRulesReferencingSecret(context.Context, uuid.UUID) 
 }
 
 type fakeZitiManagementClient struct {
+	ruleID                   uuid.UUID
 	serviceID                string
 	policyID                 string
 	createServiceCalls       int
@@ -456,7 +467,7 @@ type fakeZitiManagementClient struct {
 	lastPolicy               *zitimanagementv1.CreateServicePolicyRequest
 	updateServiceErr         error
 	getServiceErr            error
-	servicePolicy            *zitimanagementv1.ServicePolicy
+	servicePolicy            *zitimanagementv1.OpenZitiServicePolicy
 }
 
 func (f *fakeZitiManagementClient) CreateService(context.Context, *zitimanagementv1.CreateServiceRequest, ...grpc.CallOption) (*zitimanagementv1.CreateServiceResponse, error) {
@@ -476,7 +487,11 @@ func (f *fakeZitiManagementClient) GetService(context.Context, *zitimanagementv1
 	if serviceID == "" {
 		serviceID = "service-id"
 	}
-	return &zitimanagementv1.GetServiceResponse{Service: &zitimanagementv1.Service{ZitiServiceId: serviceID}}, nil
+	return &zitimanagementv1.GetServiceResponse{Service: &zitimanagementv1.OpenZitiService{
+		ZitiServiceId:  serviceID,
+		Name:           egressServiceName(f.ruleID),
+		RoleAttributes: []string{egressServiceRoleAttribute},
+	}}, nil
 }
 func (f *fakeZitiManagementClient) ListServices(context.Context, *zitimanagementv1.ListServicesRequest, ...grpc.CallOption) (*zitimanagementv1.ListServicesResponse, error) {
 	return &zitimanagementv1.ListServicesResponse{}, nil
@@ -491,7 +506,7 @@ func (f *fakeZitiManagementClient) UpdateService(_ context.Context, req *zitiman
 	if serviceID == "" {
 		serviceID = "service-id"
 	}
-	return &zitimanagementv1.UpdateServiceResponse{Service: &zitimanagementv1.Service{ZitiServiceId: serviceID}}, nil
+	return &zitimanagementv1.UpdateServiceResponse{Service: &zitimanagementv1.OpenZitiService{ZitiServiceId: serviceID}}, nil
 }
 func (f *fakeZitiManagementClient) DeleteService(context.Context, *zitimanagementv1.DeleteServiceRequest, ...grpc.CallOption) (*zitimanagementv1.DeleteServiceResponse, error) {
 	return &zitimanagementv1.DeleteServiceResponse{}, nil
@@ -505,7 +520,7 @@ func (f *fakeZitiManagementClient) GetServicePolicy(context.Context, *zitimanage
 	if f.servicePolicy != nil {
 		return &zitimanagementv1.GetServicePolicyResponse{ServicePolicy: f.servicePolicy}, nil
 	}
-	return &zitimanagementv1.GetServicePolicyResponse{ServicePolicy: &zitimanagementv1.ServicePolicy{ZitiServicePolicyId: f.policyID}}, nil
+	return &zitimanagementv1.GetServicePolicyResponse{ServicePolicy: &zitimanagementv1.OpenZitiServicePolicy{ZitiServicePolicyId: f.policyID}}, nil
 }
 func (f *fakeZitiManagementClient) ListServicePolicies(context.Context, *zitimanagementv1.ListServicePoliciesRequest, ...grpc.CallOption) (*zitimanagementv1.ListServicePoliciesResponse, error) {
 	return &zitimanagementv1.ListServicePoliciesResponse{}, nil
