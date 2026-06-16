@@ -37,22 +37,20 @@ func TestCreateServiceRequestUsesForwardingHostConfig(t *testing.T) {
 	}
 }
 
-func TestServiceMatchesRuleDetectsDrift(t *testing.T) {
+func TestServiceMatchesRuleUsesAvailableServiceFields(t *testing.T) {
 	ruleID := uuid.New()
 	rule := store.Rule{ID: ruleID, Matcher: &egressv1.EgressRuleMatcher{DomainPattern: "api.example.com", Ports: []int32{443}}}
-	service := &zitimanagementv1.Service{
-		ZitiServiceId:     "service-id",
-		Name:              egressServiceName(ruleID),
-		RoleAttributes:    []string{egressServiceRoleAttribute},
-		HostV1Config:      hostV1Config(rule.Matcher),
-		InterceptV1Config: interceptV1Config(rule.Matcher),
+	service := &zitimanagementv1.OpenZitiService{
+		ZitiServiceId:  "service-id",
+		Name:           egressServiceName(ruleID),
+		RoleAttributes: []string{egressServiceRoleAttribute},
 	}
 	if !serviceMatchesRule(service, rule) {
 		t.Fatal("expected service to match rule")
 	}
-	service.HostV1Config.AllowedAddresses = []string{"10.0.0.0/8"}
+	service.RoleAttributes = []string{"drift"}
 	if serviceMatchesRule(service, rule) {
-		t.Fatal("expected host config drift to be detected")
+		t.Fatal("expected role drift to be detected")
 	}
 }
 
@@ -61,7 +59,7 @@ func TestServicePolicyMatchesAttachmentDetectsDrift(t *testing.T) {
 	agentID := uuid.New()
 	serviceID := "ziti-service-id"
 	attachment := store.Attachment{RuleID: ruleID, AgentID: agentID}
-	policy := &zitimanagementv1.ServicePolicy{
+	policy := &zitimanagementv1.OpenZitiServicePolicy{
 		ZitiServicePolicyId: "policy-id",
 		Name:                egressDialPolicyName(ruleID, agentID),
 		Type:                zitimanagementv1.ServicePolicyType_SERVICE_POLICY_TYPE_DIAL,

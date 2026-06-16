@@ -24,9 +24,10 @@ func TestReconcileReplacesAttachmentPolicyUsingZitiServiceID(t *testing.T) {
 	attachment := store.Attachment{ID: attachmentID, RuleID: ruleID, AgentID: agentID, OpenZitiDialPolicyID: "old-policy-id", CreatedAt: time.Now(), UpdatedAt: time.Now()}
 	storeFake := &fakeRuleStore{rules: []store.Rule{rule}, attachments: []store.Attachment{attachment}}
 	zitiFake := &fakeZitiManagementClient{
+		ruleID:    ruleID,
 		serviceID: "ziti-service-id",
 		policyID:  "new-policy-id",
-		servicePolicy: &zitimanagementv1.ServicePolicy{
+		servicePolicy: &zitimanagementv1.OpenZitiServicePolicy{
 			ZitiServicePolicyId: "old-policy-id",
 			Name:                egressDialPolicyName(ruleID, agentID),
 			Type:                zitimanagementv1.ServicePolicyType_SERVICE_POLICY_TYPE_DIAL,
@@ -44,6 +45,9 @@ func TestReconcileReplacesAttachmentPolicyUsingZitiServiceID(t *testing.T) {
 	}
 	if zitiFake.createServicePolicyCalls != 1 {
 		t.Fatalf("create policy calls = %d", zitiFake.createServicePolicyCalls)
+	}
+	if zitiFake.updateServiceCalls != 0 {
+		t.Fatalf("update service calls = %d", zitiFake.updateServiceCalls)
 	}
 	if storeFake.updatedPolicyID != "new-policy-id" {
 		t.Fatalf("updated policy id = %q", storeFake.updatedPolicyID)
