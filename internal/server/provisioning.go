@@ -57,7 +57,7 @@ func (s *Server) reconcileRuleService(ctx context.Context, rule store.Rule) (str
 		return s.provisionRuleService(ctx, rule.ID, rule.Matcher)
 	}
 	resp, err := s.zitiClient.GetService(ctx, &zitimanagementv1.GetServiceRequest{
-		Lookup: &zitimanagementv1.GetServiceRequest_ZitiServiceId{ZitiServiceId: serviceID},
+		ZitiServiceId: serviceID,
 	})
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
@@ -90,11 +90,8 @@ func (s *Server) updateRuleService(ctx context.Context, rule store.Rule) (string
 	if serviceID == "" {
 		return s.provisionRuleService(ctx, rule.ID, rule.Matcher)
 	}
-	name := egressServiceName(rule.ID)
 	update, err := s.zitiClient.UpdateService(ctx, &zitimanagementv1.UpdateServiceRequest{
 		ZitiServiceId:     serviceID,
-		Name:              &name,
-		RoleAttributes:    []string{egressServiceRoleAttribute},
 		HostV1Config:      hostV1Config(rule.Matcher),
 		InterceptV1Config: interceptV1Config(rule.Matcher),
 	})
@@ -155,7 +152,7 @@ func (s *Server) reconcileAttachmentPolicy(ctx context.Context, attachment store
 		return s.provisionAttachmentPolicy(ctx, rule, attachment.AgentID)
 	}
 	resp, err := s.zitiClient.GetServicePolicy(ctx, &zitimanagementv1.GetServicePolicyRequest{
-		Lookup: &zitimanagementv1.GetServicePolicyRequest_ZitiServicePolicyId{ZitiServicePolicyId: policyID},
+		ZitiServicePolicyId: policyID,
 	})
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
@@ -218,17 +215,15 @@ func interceptV1Config(matcher *egressv1.EgressRuleMatcher) *zitimanagementv1.In
 	}
 }
 
-func serviceMatchesRule(service *zitimanagementv1.Service, rule store.Rule) bool {
+func serviceMatchesRule(service *zitimanagementv1.OpenZitiService, rule store.Rule) bool {
 	if service == nil {
 		return false
 	}
 	return service.GetName() == egressServiceName(rule.ID) &&
-		stringSlicesEqual(service.GetRoleAttributes(), []string{egressServiceRoleAttribute}) &&
-		hostV1ConfigsEqual(service.GetHostV1Config(), hostV1Config(rule.Matcher)) &&
-		interceptV1ConfigsEqual(service.GetInterceptV1Config(), interceptV1Config(rule.Matcher))
+		stringSlicesEqual(service.GetRoleAttributes(), []string{egressServiceRoleAttribute})
 }
 
-func servicePolicyMatchesAttachment(policy *zitimanagementv1.ServicePolicy, attachment store.Attachment, serviceID string) bool {
+func servicePolicyMatchesAttachment(policy *zitimanagementv1.OpenZitiServicePolicy, attachment store.Attachment, serviceID string) bool {
 	if policy == nil {
 		return false
 	}

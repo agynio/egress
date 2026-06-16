@@ -88,9 +88,8 @@ func (s *Server) deleteOrphanServices(ctx context.Context, rules []store.Rule) e
 	}
 	pageToken := ""
 	for {
-		prefix := egressServiceNamePrefix()
 		resp, err := s.zitiClient.ListServices(ctx, &zitimanagementv1.ListServicesRequest{
-			NamePrefix:     &prefix,
+			NamePrefix:     egressServiceNamePrefix(),
 			RoleAttributes: []string{egressServiceRoleAttribute},
 			PageSize:       reconciliationPageSize,
 			PageToken:      pageToken,
@@ -120,9 +119,8 @@ func (s *Server) deleteOrphanServicePolicies(ctx context.Context, attachments []
 	}
 	pageToken := ""
 	for {
-		prefix := egressServiceNamePrefix()
 		resp, err := s.zitiClient.ListServicePolicies(ctx, &zitimanagementv1.ListServicePoliciesRequest{
-			NamePrefix: &prefix,
+			NamePrefix: egressServiceNamePrefix(),
 			Type:       zitimanagementv1.ServicePolicyType_SERVICE_POLICY_TYPE_DIAL,
 			PageSize:   reconciliationPageSize,
 			PageToken:  pageToken,

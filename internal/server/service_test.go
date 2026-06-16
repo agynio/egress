@@ -186,6 +186,10 @@ func TestUpdateEgressRuleUpdatesZitiWhenMatcherInterceptChanges(t *testing.T) {
 	if got := intercept.GetPortRanges(); len(got) != 1 || got[0].GetLow() != 80 || got[0].GetHigh() != 80 {
 		t.Fatalf("intercept ports = %v", got)
 	}
+	host := zitiFake.lastUpdate.GetHostV1Config()
+	if host.GetAddress() != "api2.example.com" {
+		t.Fatalf("host address = %q", host.GetAddress())
+	}
 }
 
 func TestUpdateEgressRuleSkipsZitiWhenMatcherInterceptUnchanged(t *testing.T) {
@@ -438,7 +442,7 @@ func (f *fakeZitiManagementClient) GetService(context.Context, *zitimanagementv1
 	if serviceID == "" {
 		serviceID = "service-id"
 	}
-	return &zitimanagementv1.GetServiceResponse{Service: &zitimanagementv1.Service{ZitiServiceId: serviceID}}, nil
+	return &zitimanagementv1.GetServiceResponse{Service: &zitimanagementv1.OpenZitiService{ZitiServiceId: serviceID}}, nil
 }
 func (f *fakeZitiManagementClient) ListServices(context.Context, *zitimanagementv1.ListServicesRequest, ...grpc.CallOption) (*zitimanagementv1.ListServicesResponse, error) {
 	return &zitimanagementv1.ListServicesResponse{}, nil
@@ -464,7 +468,7 @@ func (f *fakeZitiManagementClient) CreateServicePolicy(_ context.Context, req *z
 	return &zitimanagementv1.CreateServicePolicyResponse{ZitiServicePolicyId: f.policyID}, nil
 }
 func (f *fakeZitiManagementClient) GetServicePolicy(context.Context, *zitimanagementv1.GetServicePolicyRequest, ...grpc.CallOption) (*zitimanagementv1.GetServicePolicyResponse, error) {
-	return &zitimanagementv1.GetServicePolicyResponse{ServicePolicy: &zitimanagementv1.ServicePolicy{ZitiServicePolicyId: f.policyID}}, nil
+	return &zitimanagementv1.GetServicePolicyResponse{ServicePolicy: &zitimanagementv1.OpenZitiServicePolicy{ZitiServicePolicyId: f.policyID}}, nil
 }
 func (f *fakeZitiManagementClient) ListServicePolicies(context.Context, *zitimanagementv1.ListServicePoliciesRequest, ...grpc.CallOption) (*zitimanagementv1.ListServicePoliciesResponse, error) {
 	return &zitimanagementv1.ListServicePoliciesResponse{}, nil
